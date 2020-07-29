@@ -122,7 +122,6 @@ def map(
         if not isinstance(obs, Observable):
             raise ValueError("Could not create QNodes. Some or all observables are not valid.")
 
-        # wires = list(range(dev.num_wires))
         wires = dev.register
 
         # Note: in the following template definition, we pass the observable, measurement,
