@@ -15,6 +15,7 @@
 and converting the resulting data structures to forms understood by PennyLane."""
 import os
 import subprocess
+import warnings
 from shutil import copyfile
 
 import numpy as np
@@ -26,6 +27,7 @@ from openfermionpyscf import run_pyscf
 
 import pennylane as qml
 from pennylane import Hamiltonian
+from pennylane.wires import Wires
 
 
 def _exec_exists(prog):
@@ -780,6 +782,128 @@ def excitations_to_wires(ph_confs, pphh_confs, wires=None):
         pphh.append([pphh1_wires, pphh2_wires])
 
     return ph, pphh
+
+
+def _rewire_op(operator, wire_map):
+    if isinstance(wire_map, dict):
+        old_wires = Wires(wire_map.keys())
+        new_wires = Wires(wire_map.values())
+        wire_map = dict(zip(old_wires, new_wires))
+    elif isinstance(wire_map, (Wires, list, tuple)):
+        old_wires = operator.wires
+        new_wires = Wires(wire_map)
+        wire_map = dict(zip(old_wires, new_wires))
+        old_wires = list(wire_map.keys())  # zip could shorten old_wires if len(new_wires)<len(old_wires)
+    else:
+        raise TypeError('Expected wire_map to be of type dict, list, or tuple.')
+
+    if isinstance(operator, qml.operation.Tensor):
+        # obs = []
+        for o in operator.obs:
+            # o, _ = _rewire_op(o, wire_map)
+            # obs.append(o)
+            _rewire_op(o, wire_map)
+        # operator.obs = obs
+    else:
+        operator._wires = Wires([wire_map[w] if w in wire_map else w for w in operator.wires])
+
+    # return operator, wire_map
+    return wire_map
+
+
+def _wires2register(operator, device, wire_map=None, unavail_register=None):
+    wires = operator.wires
+    register = device.register
+    unavail_register = Wires([]) if unavail_register is None else unavail_register
+    avail_reg = Wires([w for w in register if w not in unavail_register])
+
+    if isinstance(wire_map, dict):
+        if not set(Wires(wire_map.values())).issubset(set(avail_reg)):
+            raise ValueError("wire_map must map to available wires on the divice.")
+        if not set(Wires(wire_map.keys())).issubset(set(wires)):
+            raise ValueError("wire_map must map from wires of the operator.")
+    elif isinstance(wire_map, (Wires, list, tuple)):
+        if not set(Wires(wire_map)).issubset(set(avail_reg)):
+            raise ValueError("wire_map must map to available wires on the divice.")
+        if len(wire_map) > len(wires):
+            raise ValueError("wire_map is longer than wires of the operator.")
+        if len(wire_map) < len(wires):
+            warnings.warn("wire_map does not contain the full length of operator's wires.")
+    
+    if wire_map is None:
+        if wires == avail_reg:
+            # return operator, None
+            return None
+        elif len(wires) <= len(avail_reg):
+            return _rewire_op(operator, avail_reg)
+        else:
+            raise ValueError("Operator contains more wires than available wires on Device. Unable to map wires.")
+    else:
+        if len(wires) <= len(avail_reg):
+            return _rewire_op(operator, wire_map)
+        else:
+            raise ValueError("Operator contains more wires than available wires on Device. Unable to map wires.")
+
+class WireMap():
+    def __init__(self, device=None, register=None, wire_map=None, unavail_register=None):
+
+        self.no_map = False
+        self.unavail_register = unavail_register if unavail_register is not None else Wires([])
+
+        # making sure all items already wrapped up in Wires.
+        if isinstance(wire_map, dict):
+            old_wires = Wires(wire_map.keys())
+            new_wires = Wires(wire_map.values())
+            wire_map = dict(zip(old_wires, new_wires))
+        elif isinstance(wire_map, (Wires, list, tuple)):
+            old_wires = list(range(len(wire_map)))  # assuming consec wires
+            new_wires = Wires(wire_map)
+            wire_map = dict(zip(old_wires, new_wires))
+        elif wire_map is not None:
+            warnings.warn('Expected `wire_map` to be a dict/list/tuple/Wires, got {}. Ignoring `wire_map`.'.format(type(wire_map)))
+            wire_map = None
+
+        self.wire_map = wire_map if wire_map is not None else {}
+
+        # Dealing with different possible init argument combinations
+        if device is None and register is None and not wire_map:
+            self.no_map = True
+            self.register = Wires([])
+        elif device is not None:
+            # available register comes from shared wires between device and register if not None
+            self.device = device
+            self.register = register if register is not None else self.device.register
+        elif register is not None:
+            # available register comes from the register argument
+            self.device = None
+            self.register = register
+        elif wire_map:
+            # available register comes from wire_map.values()
+            self.device = None
+            self.register = Wires(wire_map.values())
+        else:
+            raise NotImplementedError('How did you end up here?')
+        
+        # self.register is the available register free for mapping.
+        self.register = Wires([
+            w for w in (
+                self.device.register if self.device is not None
+                else self.register
+            )
+            if (w in self.register) and (w not in self.unavail_register)
+        ])
+    
+    def translate(self, operator):
+
+        if self.no_map:
+            return operator
+        
+        if isinstance(operator, qml.operation.Operator):
+            _ = _rewire_op(operator, self.wire_map)
+            new_wire_map = _rewire_op(operator, self.register)
+            self.wire_map = dict(**self.wire_map, **new_wire_map)
+
+
 
 
 __all__ = [

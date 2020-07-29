@@ -374,6 +374,68 @@ def test_integration_observable_to_vqe_cost(monkeypatch, mol_name, terms_ref, ex
 
 
 @pytest.mark.parametrize(
+    ("mol_name", "terms_ref", "expected_cost"),
+    [
+        # ("empty", None, 0),
+        (
+            "h2_psycf [jordan_WIGNER]",
+            {
+                (): (-0.04207897647782188 + 0j),
+                ((0, "Z"),): (0.17771287465139934 + 0j),
+                ((1, "Z"),): (0.1777128746513993 + 0j),
+                ((2, "Z"),): (-0.24274280513140484 + 0j),
+                ((3, "Z"),): (-0.24274280513140484 + 0j),
+                ((0, "Z"), (1, "Z")): (0.17059738328801055 + 0j),
+                ((0, "Y"), (1, "X"), (2, "X"), (3, "Y")): (0.04475014401535161 + 0j),
+                ((0, "Y"), (1, "Y"), (2, "X"), (3, "X")): (-0.04475014401535161 + 0j),
+                ((0, "X"), (1, "X"), (2, "Y"), (3, "Y")): (-0.04475014401535161 + 0j),
+                ((0, "X"), (1, "Y"), (2, "Y"), (3, "X")): (0.04475014401535161 + 0j),
+                ((0, "Z"), (2, "Z")): (0.12293305056183801 + 0j),
+                ((0, "Z"), (3, "Z")): (0.1676831945771896 + 0j),
+                ((1, "Z"), (2, "Z")): (0.1676831945771896 + 0j),
+                ((1, "Z"), (3, "Z")): (0.12293305056183801 + 0j),
+                ((2, "Z"), (3, "Z")): (0.176276408043196 + 0j),
+            },
+            (0.7384971473437577 + 0j),
+        ),
+    ],
+)
+def test_integration_observable_to_vqe_cost_nonconsec_wire(monkeypatch, mol_name, terms_ref, expected_cost, tol):
+    r"""Test if `convert_observable()` in qchem integrates with `VQECost()` in pennylane"""
+
+    qOp = QubitOperator()
+    if terms_ref is not None:
+        monkeypatch.setattr(qOp, "terms", terms_ref)
+    vqe_observable = qchem.convert_observable(qOp)
+
+    # maybe make num_qubits a @property of the Hamiltonian class?
+    num_qubits = max(1, len(set([w for op in vqe_observable.ops for w in op.wires])))
+    register = list('abcdefghijklmn'[:num_qubits])
+
+    dev = qml.device("default.qubit", wires=register)
+    # print(vqe_observable.terms)
+
+    # can replace the ansatz with more suitable ones later.
+    def dummy_ansatz(phis, wires):
+        for phi, w in zip(phis, wires):
+            qml.RX(phi, wires=w)
+    
+    print('dev',dev.register)
+    print('op', [o.wires for o in vqe_observable.ops])
+    for o in vqe_observable._ops:
+        o,_ = qchem.structure._wires2register(o, dev)
+        print(o.wires)
+
+    dummy_cost = qml.VQECost(dummy_ansatz, vqe_observable, dev)
+    # for q in dummy_cost.qnodes:
+    #     print('vqe', q.device.register)
+    params = [0.1 * i for i in range(num_qubits)]
+    res = dummy_cost(params)
+
+    assert np.allclose(res, expected_cost, **tol)
+
+
+@pytest.mark.parametrize(
     ("hf_filename", "docc_mo", "act_mo", "type_of_transformation", "expected_cost"),
     [
         ("lih", [0], [1, 2], "jordan_WIGNER", -7.255500051039507),
