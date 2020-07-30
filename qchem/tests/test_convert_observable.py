@@ -376,7 +376,7 @@ def test_integration_observable_to_vqe_cost(monkeypatch, mol_name, terms_ref, ex
 @pytest.mark.parametrize(
     ("mol_name", "terms_ref", "expected_cost"),
     [
-        # ("empty", None, 0),
+        ("empty", None, 0),
         (
             "h2_psycf [jordan_WIGNER]",
             {
@@ -422,9 +422,12 @@ def test_integration_observable_to_vqe_cost_nonconsec_wire(monkeypatch, mol_name
     
     print('dev',dev.register)
     print('op', [o.wires for o in vqe_observable.ops])
-    for o in vqe_observable._ops:
-        o,_ = qchem.structure._wires2register(o, dev)
-        print(o.wires)
+    wire_mapper = qchem.structure.WireMapper(dev)
+    vqe_observable = wire_mapper.translate(vqe_observable)
+    print('op-dev', [o.wires for o in vqe_observable.ops])
+    # for o in vqe_observable._ops:
+    #     o,_ = qchem.structure._wires2register(o, dev)
+    #     print(o.wires)
 
     dummy_cost = qml.VQECost(dummy_ansatz, vqe_observable, dev)
     # for q in dummy_cost.qnodes:
