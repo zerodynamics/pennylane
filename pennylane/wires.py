@@ -198,8 +198,9 @@ class Wires(Sequence):
         """
         for w in self:
             if w not in wire_map:
+                wire_map_string = " ".join(str(l1) + "->" + str(l2) for l1, l2 in wire_map.items())
                 raise WireError(
-                    "No mapping for wire label {} specified in wire map {}.".format(w, wire_map)
+                    "No mapping for wire label {} specified in wire map {}.".format(w.labels[0], wire_map_string)
                 )
 
         new_wires = [wire_map[w] for w in self]
