@@ -354,7 +354,8 @@ class QubitQNode(JacobianQNode):
         # temporarily store the parameter values in the Variable class
         self._set_variables(args, kwargs)
 
-        tensor = np.zeros([self.num_variables, self.num_variables])
+        num_variables = sum(1 for _, v in self.variable_deps.items() if v)
+        tensor = np.zeros([num_variables, num_variables])
 
         # execute constructed metric tensor subcircuits
         for params, circuit in self._metric_tensor_subcircuits.items():

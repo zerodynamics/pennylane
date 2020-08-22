@@ -493,7 +493,8 @@ class CircuitGraph:
         layers = [current]
 
         # sort vars by first occurrence of the var in the ops queue
-        variable_ops_sorted = sorted(self.variable_deps.items(), key=lambda x: x[1][0].op.queue_idx)
+        variables = [(k, v) for k, v in self.variable_deps.items() if v]
+        variable_ops_sorted = sorted(variables, key=lambda x: x[1][0].op.queue_idx)
 
         # iterate over all parameters
         for param_idx, gate_param_tuple in variable_ops_sorted:
