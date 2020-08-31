@@ -19,6 +19,8 @@ from collections import namedtuple, OrderedDict
 import inspect
 import itertools
 
+import copy
+
 import numpy as np
 
 import pennylane as qml
@@ -850,10 +852,10 @@ class BaseQNode(qml.QueuingContext):
                 if samples_returned:
                     ret = self.device.execute(self.circuit, return_native_type=temp)
                 elif in_cache:
-                    ret = self._hash_evaluate[hash_tuple]
+                    ret = cached_result
                 else:
                     ret = self.device.execute(self.circuit, return_native_type=temp)
-                    self._hash_evaluate[hash_tuple] = (ret, self.circuit)
+                    self._hash_evaluate[hash_tuple] = (ret, copy.copy(self.circuit))
 
                     if len(self._hash_evaluate) > self.caching:
                         self._hash_evaluate.popitem(last=False)
