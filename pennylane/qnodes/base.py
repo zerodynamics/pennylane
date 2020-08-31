@@ -820,11 +820,22 @@ class BaseQNode(qml.QueuingContext):
         Returns:
             float or array[float]: output measured value(s)
         """
-        kwargs = self._default_args(kwargs)
-        self._set_variables(args, kwargs)
+        in_cache = False
+        if self.caching:
+            hashed_args = _hash_iterable(args)
+            hashed_kwargs = _hash_dict(kwargs)
+            hash_tuple = (hashed_args, hashed_kwargs)
+            in_cache = hash_tuple in self._hash_evaluate
+            if in_cache:
+                cached_result = self._hash_evaluate[hash_tuple][0]
+                self.circuit = self._hash_evaluate[hash_tuple][1]
 
-        if self.circuit is None or self.mutable:
-            self._construct(args, kwargs)
+        if not (self.caching and in_cache):
+            kwargs = self._default_args(kwargs)
+            self._set_variables(args, kwargs)
+
+            if self.circuit is None or self.mutable:
+                self._construct(args, kwargs)
 
         self.device.reset()
 
@@ -833,26 +844,19 @@ class BaseQNode(qml.QueuingContext):
             # TODO: remove this if statement once all devices are ported to the QubitDevice API
 
             if self.caching:
-                returns_samples = [ob.return_type for ob in self.circuit.observables]
-                samples_returned = ObservableReturnTypes.Sample in returns_samples
+                returns = [ob.return_type for ob in self.circuit.observables]
+                samples_returned = ObservableReturnTypes.Sample in returns
 
-                if samples_returned:  # skip caching for samples-based return types
+                if samples_returned:
                     ret = self.device.execute(self.circuit, return_native_type=temp)
+                elif in_cache:
+                    ret = self._hash_evaluate[hash_tuple]
                 else:
-                    hashed_args = _hash_iterable(args)
-                    hashed_kwargs = _hash_dict(kwargs)
-                    hashed_circuit = self.circuit.hash
-                    hash_tuple = (hashed_args, hashed_kwargs, hashed_circuit)
-                    use_cache = hash_tuple in self._hash_evaluate
+                    ret = self.device.execute(self.circuit, return_native_type=temp)
+                    self._hash_evaluate[hash_tuple] = (ret, self.circuit)
 
-                    if use_cache:
-                        ret = self._hash_evaluate[hash_tuple]
-                    else:
-                        ret = self.device.execute(self.circuit, return_native_type=temp)
-                        self._hash_evaluate[hash_tuple] = ret
-
-                        if len(self._hash_evaluate) > self.caching:
-                            self._hash_evaluate.popitem(last=False)
+                    if len(self._hash_evaluate) > self.caching:
+                        self._hash_evaluate.popitem(last=False)
             else:
                 ret = self.device.execute(self.circuit, return_native_type=temp)
         else:
