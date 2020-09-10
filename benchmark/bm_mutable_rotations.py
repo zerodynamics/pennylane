@@ -25,7 +25,7 @@ def circuit(a, *, b=1):
     """Mutable quantum circuit."""
     for idx in range(b):
         qml.RY(a[idx], wires=[0])
-    return qml.probs(0)
+    return qml.expval(qml.PauliX(0))
 
 
 class Benchmark(bu.BaseBenchmark):
@@ -39,7 +39,7 @@ class Benchmark(bu.BaseBenchmark):
     min_wires = 1
     n_vals = range(10, 60, 10)
 
-    def __init__(self, device=None, verbose=False, qnode_type=None):
+    def __init__(self, device=None, verbose=False):
         super().__init__(device, verbose)
         self.qnode = None
 
@@ -59,7 +59,6 @@ class Benchmark(bu.BaseBenchmark):
             res = self.qnode(params, b=i)
 
             expected = np.sin(np.sum(params))
-            print(res, expected)
             if np.abs(res - expected) > 1e-6:
                 wrong_results += 1
 
