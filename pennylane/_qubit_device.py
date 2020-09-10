@@ -27,7 +27,6 @@ from pennylane.operation import Sample, Variance, Expectation, Probability
 from pennylane.qnodes import QuantumFunctionError
 from pennylane import Device
 from pennylane.wires import Wires
-from pennylane.ops import Identity
 
 
 class QubitDevice(Device):
@@ -182,12 +181,10 @@ class QubitDevice(Device):
         # apply all circuit operations
         self.apply(circuit.operations, rotations=circuit.diagonalizing_gates, **kwargs)
 
-        print('before gen samples', len(self._state))
         # generate computational basis samples
         if (not self.analytic) or circuit.is_sampled:
             self._samples = self.generate_samples()
 
-        print('before stats', len(self._state))
         # compute the required statistics
         results = self.statistics(circuit.observables)
 
@@ -197,7 +194,6 @@ class QubitDevice(Device):
         if circuit.is_sampled and not all_sampled:
             return self._asarray(results, dtype="object")
 
-        print('end of execute', len(self._state))
         return self._asarray(results)
 
     @abc.abstractmethod
@@ -495,7 +491,6 @@ class QubitDevice(Device):
         # sum over all inactive wires
         prob = self._flatten(self._reduce_sum(prob, inactive_device_wires.labels))
 
-        print('in prob', prob)
         # The wires provided might not be in consecutive order (i.e., wires might be [2, 0]).
         # If this is the case, we must permute the marginalized probability so that
         # it corresponds to the orders of the wires passed.
@@ -503,7 +498,6 @@ class QubitDevice(Device):
         perm = np.ravel_multi_index(
             basis_states[:, np.argsort(np.argsort(device_wires))].T, [2] * len(device_wires)
         )
-        print(prob, perm, self._gather(prob, perm))
         return self._gather(prob, perm)
 
     def marginal_prob_dynamic(self, wires=None):
@@ -513,7 +507,6 @@ class QubitDevice(Device):
             self.num_wires = len(self._active_wires)
             self._wires = self._active_wires
             prob = np.abs(self._state) ** 2
-            print(self._state, prob)
             return self.marginal_prob(prob, wires)
 
         return self.marginal_prob(prob, wires)
