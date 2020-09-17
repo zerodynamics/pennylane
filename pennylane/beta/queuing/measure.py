@@ -74,8 +74,9 @@ class MeasurementProcess:
 
         # Below, we imitate an identity observable, so that the
         # device undertakes no action upon recieving this observable.
-        self.name = "Identity"
-        self.diagonalizing_gates = lambda: []
+
+        # self.name = "Identity"
+        # self.diagonalizing_gates = lambda: []
         self.data = []
 
         # Queue the measurement process

@@ -523,7 +523,8 @@ class Device(abc.ABC):
                                 i.name, self.short_name
                             )
                         )
-            else:
+            elif hasattr(o, "name"):
+                # Ordinary observable
 
                 observable_name = o.name
 
@@ -545,6 +546,13 @@ class Device(abc.ABC):
                         "Observable {} not supported on device {}".format(
                             observable_name, self.short_name
                         )
+                    )
+            else:
+                # MeasurementProcess
+                wants_expansion = self.capabilities().get("wants_expansion", False)
+                if wants_expansion and o.obs is not None:
+                    raise DeviceError(
+                        "The expansion of measurements is desired on device {}".format(self.short_name)
                     )
 
     @abc.abstractmethod

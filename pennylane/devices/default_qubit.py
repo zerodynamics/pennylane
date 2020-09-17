@@ -369,6 +369,7 @@ class DefaultQubit(QubitDevice):
             supports_inverse_operations=True,
             supports_analytic_computation=True,
             returns_state=True,
+            wants_expansion=True,
         )
         return capabilities
 

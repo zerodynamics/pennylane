@@ -802,7 +802,16 @@ class QuantumTape(AnnotatedQueue):
         rotation_gates = []
 
         for observable in self.observables:
-            rotation_gates.extend(observable.diagonalizing_gates())
+
+            if hasattr(observable, "obs") and observable.obs is not None:
+                # MeasurementProcess
+                diag_gates = observable.obs.diagonalizing_gates()
+            elif isinstance(observable, qml.operation.Observable):
+                diag_gates = observable.diagonalizing_gates()
+            else:
+                diag_gates = []
+
+            rotation_gates.extend(diag_gates)
 
         return rotation_gates
 
