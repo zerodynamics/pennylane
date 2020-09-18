@@ -1364,15 +1364,15 @@ class TestTensorExpval:
         dev = qml.device("default.tensor", wires=3, representation=rep)
         dev.reset()
 
-        obs = qml.PauliX(0) @ qml.PauliY(2)
+        obs = qml.PauliX(Wires([0])) @ qml.PauliY(Wires([2]))
 
         dev.apply(
             [
-                qml.RX(theta, wires=[0]),
-                qml.RX(phi, wires=[1]),
-                qml.RX(varphi, wires=[2]),
-                qml.CNOT(wires=[0, 1]),
-                qml.CNOT(wires=[1, 2])
+                qml.RX(theta, wires=[Wires([0])]),
+                qml.RX(phi, wires=Wires([1])),
+                qml.RX(varphi, wires=Wires([2])),
+                qml.CNOT(wires=Wires([0, 1])),
+                qml.CNOT(wires=Wires([1, 2]))
             ]
         )
 
