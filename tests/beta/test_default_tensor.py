@@ -545,8 +545,12 @@ class TestDefaultTensorNetworkParametrize:
 
         dev = qml.device("default.tensor", wires=3, representation=rep, contraction_method=method)
 
-        dev.apply("PauliX", Wires([0]), [])
-        dev.apply("Hadamard", Wires([1]), [])
+        dev.apply(
+            [
+                qml.PauliX(wires=Wires([0])),
+                qml.Hadamard(wires=Wires([1])),
+            ]
+        )
 
         assert dev._contracted_state_node is None
         dev._contract_premeasurement_network()
@@ -568,8 +572,12 @@ class TestDefaultTensorNetworkParametrize:
 
         dev = qml.device("default.tensor", wires=3, representation=rep)
 
-        dev.apply("PauliX", Wires([0]), [])
-        dev.apply("Hadamard", Wires([1]), [])
+        dev.apply(
+            [
+                qml.PauliX(wires=Wires([0])),
+                qml.Hadamard(wires=Wires([1])),
+            ]
+        )
 
         assert dev._contracted_state_node is None
         ket = dev._state()
@@ -799,7 +807,9 @@ class TestDefaultTensorMPSExceptions:
             NotImplementedError,
             match="Multi-wire gates only supported for nearest-neighbour wire pairs.",
         ):
-            dev._add_gate_nodes("Hermitian", wires, [np.eye(2 ** len(wires))])
+            matrix = np.eye(2 ** len(wires))
+            obs = qml.Hermitian(matrix, wires)
+            dev._add_gate_nodes(obs)
 
     @pytest.mark.parametrize("wires", [Wires([0, 2]), Wires([3, 1]), Wires([3, 5]), Wires([0, 4])])
     def test_add_gate_nodes_two_wires_non_consecutive_exception(self, wires):
@@ -811,7 +821,8 @@ class TestDefaultTensorMPSExceptions:
             NotImplementedError,
             match="Multi-wire gates only supported for nearest-neighbour wire pairs.",
         ):
-            dev._add_gate_nodes("CNOT", wires, [])
+            op = qml.CNOT(wires=wires)
+            dev._add_gate_nodes(op)
 
 
 @pytest.mark.parametrize("rep", ("exact", "mps"))

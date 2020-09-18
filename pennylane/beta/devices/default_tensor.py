@@ -300,52 +300,36 @@ class DefaultTensor(Device):
             )
             self._free_wire_edges = [node[1] for node in self.mps.nodes]
 
-    def _get_operator_matrix(self, operation, par):
-        """Get the operator matrix for a given operation or observable.
-
-        Args:
-          operation (str): name of the operation/observable
-          par (tuple[float]): parameter values
-        Returns:
-          array: matrix representation.
-        """
-        A = self._operation_and_observable_map[operation]
-        if not callable(A):
-            return self._array(A, dtype=self.C_DTYPE)
-        return self._asarray(A(*par), dtype=self.C_DTYPE)
-
-    def _apply(self, operation):
-
-        wires = operation.wires
-        par = operation.data
-        if operation.name in ("QubitStateVector", "BasisState"):
-            if (
-                wires is not None
-                and wires != Wires([])
-                and wires.tolist() != list(range(self.num_wires))
-            ):
-                raise ValueError(
-                    "The default.tensor plugin can apply {} only to all of the {} wires.".format(
-                        operation, self.num_wires
-                    )
-                )
-            self._clear_network_data()
-            self._add_state_prep_nodes(operation, par)
-        else:
-            self._add_gate_nodes(operation, wires, par)
-
     def apply(self, operations, **kwargs):
         for operation in operations:
-            self._apply(operation)
+            wires = operation.wires
+            par = operation.data
+            if operation.name in ("QubitStateVector", "BasisState"):
+                if (
+                    wires is not None
+                    and wires != Wires([])
+                    and wires.tolist() != list(range(self.num_wires))
+                ):
+                    raise ValueError(
+                        "The default.tensor plugin can apply {} only to all of the {} wires.".format(
+                            operation, self.num_wires
+                        )
+                    )
+                self._clear_network_data()
+                self._add_state_prep_nodes(operation)
+            else:
+                self._add_gate_nodes(operation)
 
-    def _add_state_prep_nodes(self, operation, par):
+
+    def _add_state_prep_nodes(self, operation):
         """Add tensor network nodes related to the state preparations ``QubitStateVector`` and
         ``BasisState`` operations.
 
         Args:
-            operation (str): name of the state preparation operation
-            par (tuple): parameter values for the state preparation
+            operation (.Operation): name of the state preparation operation
         """
+        par = operation.data
+        operation = operation.name
         if operation == "QubitStateVector":
             state_vector = self._array(par[0], dtype=self.C_DTYPE)
             if state_vector.ndim == 1 and state_vector.shape[0] == 2 ** self.num_wires:
@@ -371,16 +355,18 @@ class DefaultTensor(Device):
 
         self._add_initial_state_nodes(tensors, tensor_wires, name)
 
-    def _add_gate_nodes(self, operation, wires, par):
+    def _add_gate_nodes(self, operation):
         """Add tensor network nodes and edges related to the quantum gates.
 
         Args:
-            operation (str): name of the gate operation
-            wires (Wires): wires that the gate is applied to
-            par (tuple): parameter values for the gate
+            operation (.Operation): name of the gate operation
         """
 
-        A = operation.matrix #self._get_operator_matrix(operation, par)
+        A = operation.matrix
+        wires=operation.wires
+        par = operation.data
+        operation = operation.name
+
         num_wires = len(wires)
         A = self._reshape(A, [2] * num_wires * 2)
         op_node = self._add_node(A, wires=wires, name=operation)
