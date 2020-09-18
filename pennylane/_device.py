@@ -19,6 +19,7 @@ import abc
 
 import numpy as np
 
+from collections import Iterable, OrderedDict
 from pennylane.operation import (
     Operation,
     Observable,
@@ -29,6 +30,7 @@ from pennylane.operation import (
     Tensor,
 )
 from pennylane.qnodes import QuantumFunctionError
+from pennylane.wires import Wires, WireError
 
 
 class DeviceError(Exception):
@@ -41,21 +43,34 @@ class Device(abc.ABC):
     """Abstract base class for PennyLane devices.
 
     Args:
-        wires (int): number of subsystems in the quantum state represented by the device.
-            Default 1 if not specified.
+        wires (int or Iterable[Number, str]]): Number of subsystems represented by the device,
+            or iterable that contains unique labels for the subsystems as numbers (i.e., ``[-1, 0, 2]``)
+            or strings (``['ancilla', 'q1', 'q2']``). Default 1 if not specified.
         shots (int): Number of circuit evaluations/random samples used to estimate
             expectation values of observables. Defaults to 1000 if not specified.
     """
 
     # pylint: disable=too-many-public-methods
-    _capabilities = {}  #: dict[str->*]: plugin capabilities
+    _capabilities = {
+        "model": None,
+    }
+    """The capabilities dictionary stores the properties of a device. Devices can add their
+    own custom properties and overwrite existing ones by overriding the ``capabilities()`` method."""
+
     _circuits = {}  #: dict[str->Circuit]: circuit templates associated with this API class
     _asarray = staticmethod(np.asarray)
 
     def __init__(self, wires=1, shots=1000):
-        self.num_wires = wires
+
         self.shots = shots
 
+        if not isinstance(wires, Iterable):
+            # interpret wires as the number of consecutive wires
+            wires = range(wires)
+
+        self._wires = Wires(wires)
+        self.num_wires = len(self._wires)
+        self._wire_map = self.define_wire_map(self._wires)
         self._op_queue = None
         self._obs_queue = None
         self._parameters = None
@@ -127,6 +142,17 @@ class Device(abc.ABC):
         expectation values of observables"""
         return self._shots
 
+    @property
+    def wires(self):
+        """All wires that can be addressed on this device"""
+        return self._wires
+
+    @property
+    def wire_map(self):
+        """Ordered dictionary that defines the map from user-provided wire labels to
+        the wire labels used on this device"""
+        return self._wire_map
+
     @shots.setter
     def shots(self, shots):
         """Changes the number of shots.
@@ -145,11 +171,67 @@ class Device(abc.ABC):
 
         self._shots = int(shots)
 
+    def define_wire_map(self, wires):
+        """Create the map from user-provided wire labels to the wire labels used by the device.
+
+        The default wire map maps the user wire labels to wire labels that are consecutive integers.
+
+        However, by overwriting this function, devices can specify their preferred, non-consecutive and/or non-integer
+        wire labels.
+
+        Args:
+            wires (Wires): user-provided wires for this device
+
+        Returns:
+            OrderedDict: dictionary specifying the wire map
+
+        **Example**
+
+        >>> dev = device('my.device', wires=['b', 'a'])
+        >>> dev.wire_map()
+        OrderedDict( [(<Wires = ['a']>, <Wires = [0]>), (<Wires = ['b']>, <Wires = [1]>)])
+        """
+        consecutive_wires = Wires(range(self.num_wires))
+
+        wire_map = zip(wires, consecutive_wires)
+        return OrderedDict(wire_map)
+
+    def map_wires(self, wires):
+        """Map the wire labels of wires using this device's wire map.
+
+        Args:
+            wires (Wires): wires whose labels we want to map to the device's internal labelling scheme
+
+        Returns:
+            Wires: wires with new labels
+        """
+        try:
+            mapped_wires = wires.map(self.wire_map)
+        except WireError:
+            raise WireError(
+                "Did not find some of the wires {} on device with wires {}.".format(
+                    wires, self.wires
+                )
+            )
+
+        return mapped_wires
+
     @classmethod
     def capabilities(cls):
-        """Get the other capabilities of the plugin.
+        """Get the capabilities of this device class.
 
-        Measurements, batching etc.
+        Inheriting classes that change or add capabilities must override this method, for example via
+
+        .. code-block:: python
+
+            @classmethod
+            def capabilities(cls):
+                capabilities = super().capabilities().copy()
+                capabilities.update(
+                    supports_inverse_operations=False,
+                    supports_a_new_capability=True,
+                )
+                return capabilities
 
         Returns:
             dict[str->*]: results
@@ -260,7 +342,6 @@ class Device(abc.ABC):
             for obs in observables:
 
                 if isinstance(obs, Tensor):
-                    # if obs is a tensor observable, use a list of individual wires
                     wires = [ob.wires for ob in obs.obs]
                 else:
                     wires = obs.wires
@@ -407,9 +488,12 @@ class Device(abc.ABC):
         if isinstance(operation, str):
 
             if operation.endswith(Operation.string_for_inverse):
-                return operation[
-                    : -len(Operation.string_for_inverse)
-                ] in self.operations and self.capabilities().get("inverse_operations", False)
+                in_ops = operation[: -len(Operation.string_for_inverse)] in self.operations
+                # TODO: update when all capabilities keys changed to "supports_inverse_operations"
+                supports_inv = self.capabilities().get(
+                    "supports_inverse_operations", False
+                ) or self.capabilities().get("inverse_operations", False)
+                return in_ops and supports_inv
 
             return operation in self.operations
 
@@ -464,7 +548,11 @@ class Device(abc.ABC):
             operation_name = o.name
 
             if o.inverse:
-                if not self.capabilities().get("inverse_operations", False):
+                # TODO: update when all capabilities keys changed to "supports_inverse_operations"
+                supports_inv = self.capabilities().get(
+                    "supports_inverse_operations", False
+                ) or self.capabilities().get("inverse_operations", False)
+                if not supports_inv:
                     raise DeviceError(
                         "The inverse of gates are not supported on device {}".format(
                             self.short_name
@@ -480,7 +568,11 @@ class Device(abc.ABC):
         for o in observables:
 
             if isinstance(o, Tensor):
-                if not self.capabilities().get("tensor_observables", False):
+                # TODO: update when all capabilities keys changed to "supports_tensor_observables"
+                supports_tensor = self.capabilities().get(
+                    "supports_tensor_observables", False
+                ) or self.capabilities().get("tensor_observables", False)
+                if not supports_tensor:
                     raise DeviceError(
                         "Tensor observables not supported on device {}".format(self.short_name)
                     )
@@ -497,7 +589,11 @@ class Device(abc.ABC):
                 observable_name = o.name
 
                 if issubclass(o.__class__, Operation) and o.inverse:
-                    if not self.capabilities().get("inverse_operations", False):
+                    # TODO: update when all capabilities keys changed to "supports_inverse_operations"
+                    supports_inv = self.capabilities().get(
+                        "supports_inverse_operations", False
+                    ) or self.capabilities().get("inverse_operations", False)
+                    if not supports_inv:
                         raise DeviceError(
                             "The inverse of gates are not supported on device {}".format(
                                 self.short_name
@@ -520,7 +616,7 @@ class Device(abc.ABC):
 
         Args:
             operation (str): name of the operation
-            wires (Sequence[int]): subsystems the operation is applied on
+            wires (Wires): wires that the operation is applied to
             par (tuple): parameters for the operation
         """
 
@@ -533,7 +629,7 @@ class Device(abc.ABC):
 
         Args:
             observable (str or list[str]): name of the observable(s)
-            wires (List[int] or List[List[int]]): subsystems the observable(s) is to be measured on
+            wires (Wires): wires the observable(s) are to be measured on
             par (tuple or list[tuple]]): parameters for the observable(s)
 
         Returns:
@@ -548,7 +644,7 @@ class Device(abc.ABC):
 
         Args:
             observable (str or list[str]): name of the observable(s)
-            wires (List[int] or List[List[int]]): subsystems the observable(s) is to be measured on
+            wires (Wires): wires the observable(s) is to be measured on
             par (tuple or list[tuple]]): parameters for the observable(s)
 
         Raises:
@@ -572,14 +668,14 @@ class Device(abc.ABC):
 
         Args:
             observable (str or list[str]): name of the observable(s)
-            wires (List[int] or List[List[int]]): subsystems the observable(s) is to be measured on
+            wires (Wires): wires the observable(s) is to be measured on
             par (tuple or list[tuple]]): parameters for the observable(s)
 
         Raises:
             NotImplementedError: if the device does not support sampling
 
         Returns:
-            array[float]: samples in an array of dimension ``(n, num_wires)``
+            array[float]: samples in an array of dimension ``(shots,)``
         """
         raise NotImplementedError(
             "Returning samples from QNodes not currently supported by {}".format(self.short_name)

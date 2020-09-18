@@ -20,12 +20,11 @@ from pennylane.ops import Squeezing
 from pennylane.templates import broadcast
 from pennylane.templates.utils import (
     check_shape,
-    check_no_variable,
-    check_wires,
     check_is_in_options,
     get_shape,
     check_type,
 )
+from pennylane.wires import Wires
 
 
 @template
@@ -46,7 +45,8 @@ def SqueezingEmbedding(features, wires, method="amplitude", c=0.1):
 
     Args:
         features (array): Array of features of size (N,)
-        wires (Sequence[int]): sequence of mode indices that the template acts on
+        wires (Iterable or Wires): Wires that the template acts on. Accepts an iterable of numbers or strings, or
+            a Wires object.
         method (str): ``'phase'`` encodes the input into the phase of single-mode squeezing, while
             ``'amplitude'`` uses the amplitude
         c (float): value of the phase of all squeezing gates if ``execution='amplitude'``, or the
@@ -59,12 +59,9 @@ def SqueezingEmbedding(features, wires, method="amplitude", c=0.1):
     #############
     # Input checks
 
-    check_no_variable(method, msg="'method' cannot be differentiable")
-    check_no_variable(c, msg="'c' cannot be differentiable")
+    wires = Wires(wires)
 
     check_type(c, [float, int], msg="'c' must be of type float or integer; got {}".format(type(c)))
-
-    wires = check_wires(wires)
 
     expected_shape = (len(wires),)
     check_shape(

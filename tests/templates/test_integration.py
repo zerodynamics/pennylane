@@ -36,6 +36,7 @@ import pytest
 import numpy as np
 import pennylane as qml
 
+
 #######################################
 # Interfaces
 
@@ -70,73 +71,93 @@ except ImportError as e:
 # ``TestIntegrationQnode``, ``TestIntegrationOtherOps``, ``TestIntegrationGradient``
 
 # The entries have the following form:
-# (template, dict of differentiable arguments, dict of non-differentiable arguments)
+# (template, dict of differentiable arguments, dict of non-differentiable arguments, n_wires)
 
 # "Differentiable arguments" to a template are those that in principle allow a user to compute gradients for,
 # while "nondifferentiable arguments" must always be passed as auxiliary (keyword) arguments to a qnode.
+# n_wires is the number of wires the device needs.
 
 # Note that the template is called in all tests using 2 wires
 
 QUBIT_DIFFABLE_NONDIFFABLE = [(qml.templates.AmplitudeEmbedding,
                                {'features': [1 / 2, 1 / 2, 1 / 2, 1 / 2]},
-                               {'wires': [0, 1], 'normalize': False}),
+                               {'wires': [0, 1], 'normalize': False},
+                               2),
                               (qml.templates.AmplitudeEmbedding,
                                {'features': [1 / 2, 1 / 2, 1 / 2, 1 / 2]},
-                               {'wires': [0, 1], 'normalize': True}),
+                               {'wires': [0, 1], 'normalize': True},
+                               2),
                               (qml.templates.BasisEmbedding,
                                {},
-                               {'wires': [0, 1], 'features': [1, 0]}),
+                               {'wires': [0, 1], 'features': [1, 0]},
+                               2),
                               (qml.templates.MottonenStatePreparation,
                                {'state_vector': np.array([1 / 2, 1 / 2, 1 / 2, 1 / 2])},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.BasisStatePreparation,
                                {},
-                               {'wires': [0, 1], 'basis_state': np.array([1, 0])}),
+                               {'wires': [0, 1], 'basis_state': np.array([1, 0])},
+                               2),
                               (qml.templates.StronglyEntanglingLayers,
                                {'weights': [[[4.54, 4.79, 2.98], [4.93, 4.11, 5.58]],
                                             [[6.08, 5.94, 0.05], [2.44, 5.07, 0.95]]]},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.RandomLayers,
                                {'weights': [[0.56, 5.14], [2.21, 4.27]]},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.AngleEmbedding,
                                {'features': [1., 2.]},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.QAOAEmbedding,
                                {'features': [1., 2.],
                                 'weights': [[0.1, 0.1, 0.1]]},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.broadcast,
                                {'parameters': [[1.], [1.]]},
-                               {'wires': [0, 1], 'unitary': qml.RX, 'pattern': 'single'}),
+                               {'wires': [0, 1], 'unitary': qml.RX, 'pattern': 'single'},
+                               2),
                               (qml.templates.SimplifiedTwoDesign,
                                {'initial_layer_weights': [1., 1.],
                                 'weights': [[[1., 1.]]]},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.BasicEntanglerLayers,
                                {'weights': [[1., 1.]]},
-                               {'wires': [0, 1], 'rotation': qml.RX}),
+                               {'wires': [0, 1], 'rotation': qml.RX},
+                               2),
                               (qml.templates.IQPEmbedding,
                                {},
-                               {'wires': [0, 1], 'features': [1., 1.]}),
+                               {'wires': [0, 1], 'features': [1., 1.]},
+                               2),
                               (qml.templates.SingleExcitationUnitary,
                                {'weight': 0.56},
-                               {'wires': [0, 1]}),
+                               {'wires': [0, 1]},
+                               2),
                               (qml.templates.DoubleExcitationUnitary,
                                {'weight': 0.56},
-                               {'wires': [0, 1, 2, 3]}),
+                               {'wires1': [0, 1],
+                                'wires2': [2, 3]},
+                               4),
                               (qml.templates.UCCSD,
-                               {'weights':[3.90575761, -1.89772083, -1.36689032]},
-                               {'wires': [0, 1, 2, 3], 'ph': [[0, 2], [1, 3]],
-                                'pphh': [[0, 1, 2, 3]], 'init_state':np.array([1, 1, 0, 0])},),
+                               {'weights': [3.90575761, -1.89772083, -1.36689032]},
+                               {'wires': [0, 1, 2, 3], 's_wires': [[0, 1, 2], [1, 2, 3]],
+                                'd_wires': [[[0, 1], [2, 3]]], 'init_state':np.array([1, 1, 0, 0])},
+                               4),
                               ]
 
 CV_DIFFABLE_NONDIFFABLE = [(qml.templates.DisplacementEmbedding,
                             {'features': [1., 2.]},
-                            {'wires': [0, 1]}),
+                            {'wires': [0, 1]},
+                            2),
                            (qml.templates.SqueezingEmbedding,
                             {'features': [1., 2.]},
-                            {'wires': [0, 1]}),
+                            {'wires': [0, 1]},
+                            2),
                            (qml.templates.CVNeuralNetLayers,
                             {'theta_1': [[2.31], [1.22]],
                              'phi_1': [[3.47], [2.01]],
@@ -149,12 +170,14 @@ CV_DIFFABLE_NONDIFFABLE = [(qml.templates.DisplacementEmbedding,
                              'a': [[-0.01, -0.05], [0.08, -0.19]],
                              'phi_a': [[1.89, 3.59], [1.49, 3.71]],
                              'k': [[0.09, 0.03], [-0.14, 0.04]]},
-                            {'wires': [0, 1]}),
+                            {'wires': [0, 1]},
+                            2),
                            (qml.templates.Interferometer,
                             {'theta': [2.31],
                              'phi': [3.49],
                              'varphi': [0.98, 1.54]},
-                            {'wires': [0, 1]}),
+                            {'wires': [0, 1]},
+                            2),
                            ]
 
 # List templates in NO_OP_BEFORE that do not allow for operations
@@ -293,9 +316,9 @@ class TestIntegrationQnode:
     All templates should work no matter how the "differentiable arguments" are passed to the qnode.
     """
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", QUBIT_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", QUBIT_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_qubit_qnode_primary_args(self, template, diffable, nondiffable, interface, to_var):
+    def test_qubit_qnode_primary_args(self, template, diffable, nondiffable, n_wires, interface, to_var):
         """Tests integration of qubit templates with other operations, passing differentiable arguments
         as primary arguments to qnode."""
 
@@ -307,7 +330,6 @@ class TestIntegrationQnode:
         diffable = [to_var(i) for i in diffable]
 
         # Generate qnode
-        n_wires = len(nondiffable['wires'])
         dev = qml.device('default.qubit', wires=n_wires)
 
         # Generate qnode in which differentiable arguments are passed
@@ -326,9 +348,9 @@ class TestIntegrationQnode:
         # Check that execution does not throw error
         circuit(*diffable, keys_diffable=keys_diffable, nondiffable=nondiffable)
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", CV_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", CV_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_cv_qnode_primary_args(self, template, diffable, nondiffable,
+    def test_cv_qnode_primary_args(self, template, diffable, nondiffable, n_wires,
                                    interface, to_var, gaussian_dummy):
         """Tests integration of cv templates passing differentiable arguments as positional arguments to qnode."""
 
@@ -341,7 +363,6 @@ class TestIntegrationQnode:
 
         # Generate qnode in which differentiable arguments are passed
         # as primary argument
-        n_wires = len(nondiffable['wires'])
         dev = gaussian_dummy(n_wires)
 
         @qml.qnode(dev, interface=interface)
@@ -358,9 +379,9 @@ class TestIntegrationQnode:
         # Check that execution does not throw error
         circuit(*diffable, keys_diffable=keys_diffable, nondiffable=nondiffable)
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", QUBIT_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", QUBIT_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_qubit_qnode_auxiliary_args(self, template, diffable, nondiffable, interface, to_var):
+    def test_qubit_qnode_auxiliary_args(self, template, diffable, nondiffable, n_wires, interface, to_var):
         """Tests integration of qubit templates passing differentiable arguments as auxiliary arguments to qnode."""
 
         # Change type of differentiable arguments
@@ -371,7 +392,6 @@ class TestIntegrationQnode:
         all_args = {**diffable, **nondiffable}
 
         # Generate qnode
-        n_wires = len(nondiffable['wires'])
         dev = qml.device('default.qubit', wires=n_wires)
 
         # Generate qnode in which differentiable arguments are passed
@@ -384,9 +404,9 @@ class TestIntegrationQnode:
         # Check that execution does not throw error
         circuit(all_args=all_args)
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", CV_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", CV_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_qubit_cv_auxiliary_args(self, template, diffable, nondiffable,
+    def test_qubit_cv_auxiliary_args(self, template, diffable, nondiffable, n_wires,
                                      interface, to_var, gaussian_dummy):
         """Tests integration of cv templates passing differentiable arguments as auxiliary arguments to qnode."""
 
@@ -399,7 +419,6 @@ class TestIntegrationQnode:
 
         # Generate qnode in which differentiable arguments are passed
         # as primary argument
-        n_wires = len(nondiffable['wires'])
         dev = gaussian_dummy(n_wires)
 
         @qml.qnode(dev, interface=interface)
@@ -427,8 +446,8 @@ class TestIntegrationOtherOps:
     together with other operations or templates."""
 
     @pytest.mark.parametrize("op_before_template", [True, False])
-    @pytest.mark.parametrize("template, diffable, nondiffable", QUBIT_DIFFABLE_NONDIFFABLE)
-    def test_qubit_template_followed_by_operations(self, template, diffable, nondiffable, op_before_template):
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", QUBIT_DIFFABLE_NONDIFFABLE)
+    def test_qubit_template_followed_by_operations(self, template, diffable, nondiffable, n_wires, op_before_template):
         """Tests integration of qubit templates with other operations."""
 
         # skip this test if template does not allow for operations before
@@ -443,7 +462,6 @@ class TestIntegrationOtherOps:
         nondiffable.update(diffable)
 
         # Generate qnode
-        n_wires = len(nondiffable['wires'])
         dev = qml.device('default.qubit', wires=n_wires)
 
         @qml.qnode(dev)
@@ -463,8 +481,8 @@ class TestIntegrationOtherOps:
         circuit(nondiffable=nondiffable)
 
     @pytest.mark.parametrize("op_before_template", [True, False])
-    @pytest.mark.parametrize("template, diffable, nondiffable", CV_DIFFABLE_NONDIFFABLE)
-    def test_cv_template_followed_by_operations(self, template, diffable, nondiffable, gaussian_dummy,
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", CV_DIFFABLE_NONDIFFABLE)
+    def test_cv_template_followed_by_operations(self, template, diffable, nondiffable, n_wires, gaussian_dummy,
                                                 op_before_template):
         """Tests integration of cv templates passing differentiable arguments as auxiliary arguments to qnode."""
 
@@ -476,7 +494,6 @@ class TestIntegrationOtherOps:
         nondiffable.update(diffable)
 
         # Make qnode
-        n_wires = len(nondiffable['wires'])
         dev = gaussian_dummy(n_wires)
 
         @qml.qnode(dev)
@@ -500,9 +517,9 @@ class TestIntegrationOtherOps:
 class TestIntegrationGradient:
     """Tests that gradients of circuits with templates can be computed."""
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", QUBIT_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", QUBIT_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_integration_qubit_grad(self, template, diffable, nondiffable, interface, to_var):
+    def test_integration_qubit_grad(self, template, diffable, nondiffable, n_wires, interface, to_var):
         """Tests that gradient calculations of qubit templates execute without error."""
 
         # Extract keys and items
@@ -513,7 +530,6 @@ class TestIntegrationGradient:
         diffable = [to_var(i) for i in diffable]
 
         # Make qnode
-        n_wires = len(nondiffable['wires'])
         dev = qml.device('default.qubit', wires=n_wires)
 
         @qml.qnode(dev, interface=interface)
@@ -550,9 +566,9 @@ class TestIntegrationGradient:
                     loss = circuit(*diffable)
                     tape.gradient(loss, diffable[argnum])
 
-    @pytest.mark.parametrize("template, diffable, nondiffable", CV_DIFFABLE_NONDIFFABLE)
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", CV_DIFFABLE_NONDIFFABLE)
     @pytest.mark.parametrize("interface, to_var", INTERFACES)
-    def test_integration_cv_grad(self, template, diffable, nondiffable, interface, to_var, gaussian_dummy):
+    def test_integration_cv_grad(self, template, diffable, nondiffable, n_wires, interface, to_var, gaussian_dummy):
         """Tests that gradient calculations of cv templates execute without error."""
 
         # Extract keys and items
@@ -563,7 +579,6 @@ class TestIntegrationGradient:
         diffable = [to_var(i) for i in diffable]
 
         # Make qnode
-        n_wires = len(nondiffable['wires'])
         dev = gaussian_dummy(n_wires)
 
         @qml.qnode(dev, interface=interface)
@@ -633,3 +648,86 @@ class TestInitializationIntegration:
 
         # Check that execution does not throw error
         circuit()
+
+
+class TestNonConsecutiveWires:
+    """Tests that a template results in the same state whether we use nonconsecutive wire labels or not.
+    """
+
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", QUBIT_DIFFABLE_NONDIFFABLE)
+    def test_qubit_result_is_wire_label_independent(self, template, diffable, nondiffable, n_wires):
+        """Tests that qubit templates produce the same state when using two different wire labellings."""
+
+        # merge differentiable and non-differentiable arguments:
+        # we don't need them separate here
+        kwargs = {**nondiffable, **diffable}
+
+        # construct qnode with consecutive wires
+        dev_consec = qml.device('default.qubit', wires=n_wires)
+        @qml.qnode(dev_consec)
+        def circuit_consec():
+            template(**kwargs)
+            return qml.expval(qml.Identity(wires=0))
+
+        # construct qnode with nonconsecutive wires
+        non_consecutive_strings = ['z', 'b', 'f', 'a', 'k', 'c', 'r', 's', 'd']
+        nonconsecutive_wires = non_consecutive_strings[: n_wires]  # make flexible size wires argument
+        kwargs2 = kwargs.copy()
+        if 'wires' in kwargs2:
+            kwargs2['wires'] = nonconsecutive_wires
+        # DoubleExcitationLayers does not have a wires kwarg
+        if template.__name__ == 'DoubleExcitationUnitary':
+            kwargs2['wires1'] = nonconsecutive_wires[:2]
+            kwargs2['wires2'] = nonconsecutive_wires[2:]
+        # some kwargs in UCSSD need to be manually replaced
+        if template.__name__ == 'UCCSD':
+             # kwargs2['ph'] = [nonconsecutive_wires[:3], nonconsecutive_wires[1:]]
+             # kwargs2['pphh'] = [[nonconsecutive_wires[:2], nonconsecutive_wires[2:]]]
+             kwargs2['s_wires'] = [nonconsecutive_wires[:3], nonconsecutive_wires[1:]]
+             kwargs2['d_wires'] = [[nonconsecutive_wires[:2], nonconsecutive_wires[2:]]]
+
+        dev_nonconsec = qml.device('default.qubit', wires=nonconsecutive_wires)
+
+        @qml.qnode(dev_nonconsec)
+        def circuit_nonconsec():
+            template(**kwargs2)
+            return qml.expval(qml.Identity(wires=nonconsecutive_wires[0]))
+
+        # run circuits
+        circuit_consec()
+        circuit_nonconsec()
+
+        assert np.allclose(dev_consec.state, dev_nonconsec.state)
+
+    @pytest.mark.parametrize("template, diffable, nondiffable, n_wires", CV_DIFFABLE_NONDIFFABLE)
+    def test_cv_result_is_wire_label_independent(self, template, diffable, nondiffable, n_wires, gaussian_dummy):
+        """Tests integration of cv templates with non-integer and non-consecutive wires."""
+
+        # merge differentiable and non-differentiable arguments:
+        # we don't need them separate here
+        kwargs = {**nondiffable, **diffable}
+
+        # Construct qnode with consecutive wires
+        dev_consec = gaussian_dummy(wires=kwargs['wires'])
+
+        @qml.qnode(dev_consec)
+        def circuit_consec():
+            template(**kwargs)
+            return qml.expval(qml.Identity(wires=0))
+
+        # Construct qnode with nonconsecutive wires
+        kwargs2 = kwargs.copy()
+        non_consecutive_strings = ['z', 'b', 'f', 'a', 'k', 'c', 'r', 's', 'd']
+        nonconsecutive_wires = non_consecutive_strings[: n_wires]  # make flexible size wires argument
+        kwargs2['wires'] = nonconsecutive_wires
+        dev_nonconsec = gaussian_dummy(wires=nonconsecutive_wires)
+
+        @qml.qnode(dev_nonconsec)
+        def circuit_nonconsec():
+            template(**kwargs2)
+            return qml.expval(qml.Identity(wires=nonconsecutive_wires[0]))
+
+        circuit_consec()
+        circuit_nonconsec()
+
+        assert np.allclose(dev_consec._state[0], dev_nonconsec._state[0])

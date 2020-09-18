@@ -20,7 +20,7 @@ import pytest
 from math import pi
 import numpy as np
 import pennylane as qml
-from pennylane.ops import RY
+import pennylane._queuing
 from pennylane.templates.embeddings import (AngleEmbedding,
                                             BasisEmbedding,
                                             AmplitudeEmbedding,
@@ -28,6 +28,7 @@ from pennylane.templates.embeddings import (AngleEmbedding,
                                             DisplacementEmbedding,
                                             SqueezingEmbedding)
 from pennylane import Beamsplitter
+from pennylane.wires import Wires
 
 
 class TestAmplitudeEmbedding:
@@ -261,21 +262,6 @@ class TestAngleEmbedding:
         with pytest.raises(ValueError, match="did not recognize option"):
             circuit(x=[1])
 
-    def test_angle_embedding_exception_wires_not_valid(self):
-        """Verifies that AngleEmbedding() raises an exception if ``wires`` is not
-        a valid list of indices."""
-
-        n_subsystems = 5
-        dev = qml.device('default.qubit', wires=n_subsystems)
-
-        @qml.qnode(dev)
-        def circuit(x=None):
-            AngleEmbedding(features=x, wires='a')
-            return qml.expval(qml.PauliZ(0))
-
-        with pytest.raises(ValueError, match="wires must be a positive"):
-            circuit(x=[1])
-
 
 class TestBasisEmbedding:
     """ Tests the BasisEmbedding method."""
@@ -323,19 +309,6 @@ class TestBasisEmbedding:
         with pytest.raises(ValueError):
             circuit(x=np.array([0]))
 
-    def test_basis_embedding_illegal_wires_exception(self):
-        """Verifies that BasisEmbedding() raises an exception if ``wires`` has incorrect format."""
-
-        n_subsystems = 2
-        dev = qml.device('default.qubit', wires=n_subsystems)
-
-        @qml.qnode(dev)
-        def circuit(x=None):
-            BasisEmbedding(features=x, wires="a")
-            return qml.expval(qml.PauliZ(0))
-
-        with pytest.raises(ValueError, match="wires must be a positive"):
-            circuit(x=[1, 0])
 
     def test_basis_embedding_input_not_binary_exception(self):
         """Verifies that BasisEmbedding() raises an exception if the features contain
@@ -382,7 +355,7 @@ class TestIQPEmbedding:
     def test_queue_default_pattern(self, n_wires, expected_queue, n_repeats):
         """Checks the queue for the default pattern."""
 
-        with qml.utils.OperationRecorder() as rec:
+        with pennylane._queuing.OperationRecorder() as rec:
             qml.templates.IQPEmbedding(features=list(range(n_wires)), wires=range(n_wires), n_repeats=n_repeats)
 
         expected_queue = expected_queue * n_repeats
@@ -399,7 +372,7 @@ class TestIQPEmbedding:
     def test_queue_parameters(self, features, expected_params, wires):
         """Checks the queued parameters, for consecutive and non-consecutive ``wires`` argument."""
 
-        with qml.utils.OperationRecorder() as rec:
+        with pennylane._queuing.OperationRecorder() as rec:
             qml.templates.IQPEmbedding(features=features, wires=wires)
 
         # compare all nonempty gate parameters to expected ones
@@ -417,26 +390,26 @@ class TestIQPEmbedding:
         """Checks the queued wires for a consecutive and non-consecutive sequence
            of indices in the ``wires`` argument."""
 
-        with qml.utils.OperationRecorder() as rec:
+        with pennylane._queuing.OperationRecorder() as rec:
             qml.templates.IQPEmbedding(features=list(range(3)), wires=wires)
 
         # compare all gate wires to expected ones
         for idx, gate in enumerate(rec.queue):
-            assert np.allclose(gate.wires, expected_queue_wires[idx])
+            assert gate.wires == Wires(expected_queue_wires[idx])
 
     @pytest.mark.parametrize('pattern', [[[0, 3], [1, 2], [2, 0]],
                                          [[2, 3], [0, 2], [1, 0]]])
     def test_wires_custom_pattern(self, pattern):
         """Checks the queue for a custom pattern."""
 
-        with qml.utils.OperationRecorder() as rec:
+        with pennylane._queuing.OperationRecorder() as rec:
             qml.templates.IQPEmbedding(features=list(range(4)), wires=range(4), pattern=pattern)
 
         counter = 0
         for gate in rec.queue:
             # check wires of entanglers
             if len(gate.wires) == 2:
-                assert gate.wires == pattern[counter]
+                assert gate.wires == Wires(pattern[counter])
                 counter += 1
 
     @pytest.mark.parametrize('features', [[1., 2.],
@@ -454,22 +427,6 @@ class TestIQPEmbedding:
 
         with pytest.raises(ValueError, match="'features' must be of shape"):
             circuit(f=features)
-
-    @pytest.mark.parametrize('pattern', [qml.RZ,
-                                         [qml.RZ, qml.RZ],
-                                         [[qml.RZ, qml.RZ], [qml.RZ, qml.RZ]]])
-    def test_exception_wrong_type_pattern(self, pattern):
-        """Verifies that an exception is raised if 'pattern' is of a wrong type."""
-
-        dev = qml.device('default.qubit', wires=3)
-
-        @qml.qnode(dev)
-        def circuit(f=None):
-            qml.templates.IQPEmbedding(features=f, wires=range(3), pattern=pattern)
-            return [qml.expval(qml.PauliZ(w)) for w in range(3)]
-
-        with pytest.raises(ValueError, match="'pattern' must be None or a list of wire pairs"):
-            circuit(f=[1., 2., 3.])
 
     @pytest.mark.parametrize('pattern', [[[1], [2]],
                                          [[0, 1, 2], [0, 1, 2]]])
@@ -499,20 +456,6 @@ class TestIQPEmbedding:
         with pytest.raises(ValueError, match="'n_repeats' must be an integer"):
             circuit(f=[1., 2., 3.])
 
-    def test_exception_features_passed_as_positional_arg(self):
-        """Verifies that an exception is raised if 'features' is passed as a positional argument to the
-         qnode."""
-
-        dev = qml.device('default.qubit', wires=3)
-
-        @qml.qnode(dev)
-        def circuit(features):
-            qml.templates.IQPEmbedding(features=features, wires=range(3))
-            return [qml.expval(qml.PauliZ(w)) for w in range(3)]
-
-        with pytest.raises(ValueError, match="'features' cannot be differentiable"):
-            circuit([1., 2., 3.])
-
 
 class TestQAOAEmbedding:
     """ Tests the QAOAEmbedding method."""
@@ -526,7 +469,7 @@ class TestQAOAEmbedding:
     def test_queue(self, n_wires, weight_shape, expected_queue):
         """Checks the queue for the default settings."""
 
-        with qml.utils.OperationRecorder() as rec:
+        with pennylane._queuing.OperationRecorder() as rec:
             QAOAEmbedding(features=list(range(n_wires)), weights=np.zeros(shape=weight_shape), wires=range(n_wires))
 
         for gate, expected_gate in zip(rec.queue, expected_queue):
@@ -673,22 +616,6 @@ class TestQAOAEmbedding:
         with pytest.raises(ValueError, match="did not recognize option"):
             circuit(x=[1])
 
-    def test_exception_wires_not_valid(self):
-        """Verifies that QAOAEmbedding() raises an exception if ``wires`` is not
-        a valid list of indices."""
-
-        n_wires = 5
-        weights = np.zeros(shape=(1, 2 * n_wires))
-        dev = qml.device('default.qubit', wires=n_wires)
-
-        @qml.qnode(dev)
-        def circuit(x=None):
-            QAOAEmbedding(features=x, weights=weights, wires='a')
-            return qml.expval(qml.PauliZ(0))
-
-        with pytest.raises(ValueError, match="wires must be a positive"):
-            circuit(x=[1])
-
 
 class TestDisplacementEmbedding:
     """ Tests the DisplacementEmbedding method."""
@@ -755,21 +682,6 @@ class TestDisplacementEmbedding:
         with pytest.raises(ValueError, match="did not recognize option"):
             circuit(x=[1, 2])
 
-    def test_displacement_embedding_wires_not_valid_exception(self):
-        """Verifies that DisplacementEmbedding() raises an exception if ``wires`` is not
-        a list of indices."""
-
-        n_subsystems = 5
-        dev = qml.device('default.gaussian', wires=n_subsystems)
-
-        @qml.qnode(dev)
-        def circuit(x=None):
-            DisplacementEmbedding(features=x, wires='a')
-            return qml.expval(qml.X(0))
-
-        with pytest.raises(ValueError, match="wires must be a positive"):
-            circuit(x=[1])
-
 
 class TestSqueezingEmbedding:
     """ Tests the SqueezingEmbedding method."""
@@ -834,18 +746,3 @@ class TestSqueezingEmbedding:
 
         with pytest.raises(ValueError, match="did not recognize option"):
             circuit(x=[1, 2])
-
-    def test_squeezing_embedding_wires_not_valid_exception(self):
-        """Verifies that SqueezingtEmbedding() raises an exception if ``wires`` is not
-        a list of indices."""
-
-        n_subsystems = 5
-        dev = qml.device('default.gaussian', wires=n_subsystems)
-
-        @qml.qnode(dev)
-        def circuit(x=None):
-            DisplacementEmbedding(features=x, wires='a')
-            return qml.expval(qml.X(0))
-
-        with pytest.raises(ValueError, match="wires must be a positive"):
-            circuit(x=[1])

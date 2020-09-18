@@ -152,8 +152,8 @@ If you are doing research using PennyLane, please cite
 Support and contribution
 ------------------------
 
-- **Source Code:** https://github.com/XanaduAI/PennyLane
-- **Issue Tracker:** https://github.com/XanaduAI/PennyLane/issues
+- **Source Code:** https://github.com/PennyLaneAI/pennylane
+- **Issue Tracker:** https://github.com/PennyLaneAI/pennylane/issues
 
 If you are having issues, please let us know by posting the issue on our GitHub issue tracker.
 
@@ -205,11 +205,13 @@ PennyLane is **free** and **open source**, released under the Apache License, Ve
    code/qml_init
    code/qml_interfaces
    code/qml_operation
-   code/qml_plugins
+   code/qml_devices
+   code/qml_qaoa
    code/qml_qchem
    code/qml_qnn
    code/qml_qnodes
    code/qml_templates
    code/qml_utils
    code/qml_variable
+   code/qml_wires
    code/qml_beta

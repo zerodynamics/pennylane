@@ -36,13 +36,6 @@ A quick primer on terminology of PennyLane plugins in this section:
 Creating your device
 --------------------
 
-.. note::
-
-    A handy `plugin template repository <https://github.com/XanaduAI/pennylane-plugin-template>`__
-    is available, providing the boilerplate and file structure required to easily create your
-    own PennyLane plugin, as well as a suite of integration tests to ensure the plugin
-    returns correct expectation values.
-
 The first step in creating your PennyLane plugin is to create your device class.
 This is as simple as importing the abstract base class :class:`~.QubitDevice` from PennyLane,
 and subclassing it:
@@ -80,8 +73,8 @@ and use the device. These include:
 Defining all these attributes is mandatory.
 
 
-Supporting operations
----------------------
+Device capabilities
+-------------------
 
 You must further tell PennyLane about the operations that your device supports
 as well as potential further capabilities, by providing the following class attributes/properties:
@@ -108,14 +101,28 @@ as well as potential further capabilities, by providing the following class attr
       conversion between the two conventions takes place automatically
       by the plugin device.
 
-* :attr:`.Device._capabilities`: a dictionary containing information about the capabilities of
-  the device. Keys currently supported include:
+* :func:`.Device.capabilities`: A class method which returns the dictionary of capabilities of a device. A
+  new device should override this method to retrieve the parent classes' capabilities dictionary, make a copy
+  and update and/or add capabilities before returning the copy.
 
-  * ``'model'`` (*str*): either ``'qubit'`` or ``'CV'``.
+  Examples of capabilities are:
 
-  * ``'inverse_operations'`` (*bool*): ``True`` if the device supports
+  * ``'model'`` (*str*): either ``'qubit'`` or ``'cv'``.
+
+  * ``'returns_state'`` (*bool*): ``True`` if the device returns the quantum state via ``dev.state``.
+
+  * ``'supports_inverse_operations'`` (*bool*): ``True`` if the device supports
     applying the inverse of operations. Operations which should be inverted
     have the property ``operation.inverse == True``.
+
+  *  ``'supports_tensor_observables'`` (*bool*): ``True`` if the device supports observables composed from tensor
+     products such as ``PauliZ(wires=0) @ PauliZ(wires=1)``.
+
+  Some capabilities are queried by PennyLane core to make decisions on how to best run computations, others are used
+  by external apps built on top of the device ecosystem.
+
+  To find out which capabilities are (possibly automatically) defined for your device ``dev = device('my.device')``,
+  check the output of ``dev.capabilities()``.
 
 Adding arguments to your device
 --------------------------------
@@ -130,7 +137,9 @@ Defining the ``__init__.py`` method of a custom device is not necessary; by defa
 the :class:`~.QubitDevice` initialization will be called, where the user can pass the
 following arguments:
 
-* ``wires`` (*int*): the number of wires on the device.
+* ``wires`` (*int* or *Iterable[Number, str]*): The number of subsystems represented by the device,
+  or iterable that contains unique labels for the subsystems as numbers (i.e., ``[-1, 0, 2]``)
+  and/or strings (``['ancilla', 'q1', 'q2']``).
 
 * ``shots=1000`` (*int*): number of circuit evaluations/random samples used to estimate
   expectation values of observables in non-analytic mode.
@@ -141,8 +150,8 @@ following arguments:
   ``analytic=False``.
 
 To add your own device arguments, or to override any of the above defaults, simply
-overwrite the ``__init__.py`` method. For example, consider a device where the number
-of wires is fixed to ``24``, cannot be used in analytic mode, and can accept a dictionary
+overwrite the ``__init__.py`` method. For example, here is a device where the number
+of wires is fixed to ``24``, that cannot be used in analytic mode, and that can accept a dictionary
 of low-level hardware control options:
 
 .. code-block:: python3
@@ -269,6 +278,86 @@ this may have unintended side-effects and is not recommended.
 .. _installing_plugin:
 
 
+Wire handling
+-------------
+
+PennyLane uses the :class:`~.wires.Wires` class for the internal representation of wires. :class:`~.wires.Wires`
+inherits from Python's ``Sequence``, and represents an ordered set of unique wire labels.
+Indexing a ``Wires`` instance will return another ``Wires`` instance of length one.
+The ``labels`` attribute stores a tuple of the wire labels.
+
+For example:
+
+.. code-block:: python
+
+    from pennylane.wires import Wires
+
+    wires = Wires(['ancilla', 0, 1])
+    print(wires[0]) # <Wires = ['ancilla']>
+    print(wires.labels) # ('ancilla', 0, 1)
+
+As shown in the section on :doc:`/introduction/circuits`, a device can be created with custom wire labels:
+
+.. code-block:: python
+
+    from pennylane import *
+
+    dev = device('my.device', wires=['q11', 'q12', 'q21', 'q22'])
+
+    @qnode(dev)
+    def circuit():
+       Gate1(wires='q22')
+       Gate2(wires=['q21','q11'])
+       Gate1(wires=['q21'])
+       return expval(Obs(wires='q11') @ Obs(wires='q12'))
+
+Behind the scenes, when ``my.device`` gets created it turns ``['q11', 'q12', 'q21', 'q22']`` into a
+:class:`~.wires.Wires` object and stores it in the device's ``wires`` attribute. Likewise, when gates and
+observables get created they turn their ``wires`` argument into a :class:`~.wires.Wires`
+object and store it in their ``wires`` attribute.
+
+.. code-block:: python
+
+    print(dev.wires) #  <Wires = ['q11', 'q12', 'q21', 'q22']>
+
+    op = Gate2(wires=['q21','q11'])
+    print(op.wires) # <Wires = ['q21', 'q11']>
+
+When the device applies operations, it needs to translate
+``op.wires`` into wire labels that the backend "understands". This can be done with the
+:meth:`~.Device.map_wires` method which maps ``Wires`` objects to other ``Wires`` objects,
+but changes the labels according to the ``wire_map`` attribute of the device which defines the translation.
+
+.. code-block:: python
+
+    # inside the class defining 'my.device', which inherits from the base Device class
+    device_wires = self.map_wires(op.wires)
+    print(device_wires) # <Wires = [2, 0]>
+
+By default, the map translates the custom labels ``'q11'``, ``'q12'``, ``'q21'``, ``'q22'`` to
+consecutive integers ``0``, ``1``, ``2``, ``3``. If a device uses a different wire labeling,
+such as non-consecutive wires ``0``, ``4``, ``7``, ``12``, the :meth:`~.Device.define_wire_map` method
+has to be overwritten accordingly.
+
+The ``device_wires`` can then be further processed, for example by extracting the actual labels as a tuple,
+list or array, or by getting the number of wires:
+
+.. code-block:: python
+
+    device_wires.labels # (2, 0)
+
+    device_wires.tolist() # [2, 0]
+
+    device_wires.toarray() # ndarray([2, 0])
+
+    len(device_wires) # 2
+
+The ``Wires`` class also offers set functionality like identifying the unique or shared wires between several ``Wires``
+object.
+
+As a convention, devices should do the translation and unpacking as late as possible in the function tree, and
+where possible pass the original :class:`~.wires.Wires` objects around.
+
 Identifying and installing your device
 --------------------------------------
 
@@ -311,19 +400,21 @@ then be accessible via PennyLane.
 Testing
 -------
 
-All plugins should come with extensive unit tests, to ensure that the device supports the correct
-gates and observables, and is applying them correctly. For an example of a plugin test suite, see
-``tests/test_default_qubit.py`` and ``tests/test_default_gaussian.py`` in the main
-`PennyLane repository <https://github.com/XanaduAI/pennylane/>`_.
+All plugins should come with extensive unit tests, to ensure that each logical unit of the
+device has correct execution.
 
-Integration tests to check that the expectation values, variance, and samples are correct for
-various circuits and observables are provided in the
-`PennyLane Plugin Template <https://github.com/XanaduAI/pennylane-plugin-template>`__ repository.
+Integration tests to check that the probabilities, expectation values, variance, and samples are
+correct for various circuits and observables are provided as part of the PennyLane device
+test utility:
+
+
+.. code-block:: console
+
+    pl-device-test --device device_shortname --shots 10000 --analytic False
 
 In general, as all supported operations have their gradient formula defined and tested by
-PennyLane, testing that your device calculates the correct gradients is not required — just
-that it *applies* and *measures* quantum operations and observables correctly.
-
+PennyLane, testing that your device calculates the correct gradients is not required.
+For more details on the PennyLane device test utility, see :mod:`pennylane.devices.tests`.
 
 Supporting new operations
 -------------------------
@@ -369,7 +460,8 @@ where
 
 * :attr:`~.Operator.par_domain`: the domain of the gate parameters; ``'N'`` for natural
   numbers (including zero), ``'R'`` for floats, ``'A'`` for arrays of floats/complex numbers,
-  and ``None`` if the gate does not have free parameters
+  ``'L'`` for list of arrays of floats/complex numbers and ``None`` if the gate does not have
+  free parameters
 
 * :attr:`~.Operation.grad_method`: the gradient computation method; ``'A'`` for the analytic
   method, ``'F'`` for finite differences, and ``None`` if the operation may not be differentiated

@@ -20,12 +20,10 @@ import numpy as np
 from pennylane.ops import CNOT, RX, RZ, Hadamard
 from pennylane.templates.decorator import template
 from pennylane.templates.utils import (
-    check_no_variable,
     check_shape,
-    check_type,
-    check_wires,
     get_shape,
 )
+from pennylane.wires import Wires
 
 
 def _layer1(weight, s, r, q, p, set_cnot_wires):
@@ -44,8 +42,7 @@ def _layer1(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -54,7 +51,7 @@ def _layer1(weight, s, r, q, p, set_cnot_wires):
     RX(-np.pi / 2, wires=q)
     Hadamard(wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -88,8 +85,7 @@ def _layer2(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -98,7 +94,7 @@ def _layer2(weight, s, r, q, p, set_cnot_wires):
     RX(-np.pi / 2, wires=q)
     RX(-np.pi / 2, wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -132,8 +128,7 @@ def _layer3(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -142,7 +137,7 @@ def _layer3(weight, s, r, q, p, set_cnot_wires):
     RX(-np.pi / 2, wires=q)
     RX(-np.pi / 2, wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -176,8 +171,7 @@ def _layer4(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -186,7 +180,7 @@ def _layer4(weight, s, r, q, p, set_cnot_wires):
     Hadamard(wires=q)
     RX(-np.pi / 2, wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -220,8 +214,7 @@ def _layer5(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -230,7 +223,7 @@ def _layer5(weight, s, r, q, p, set_cnot_wires):
     Hadamard(wires=q)
     Hadamard(wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -264,8 +257,7 @@ def _layer6(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -274,7 +266,7 @@ def _layer6(weight, s, r, q, p, set_cnot_wires):
     Hadamard(wires=q)
     Hadamard(wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -308,8 +300,7 @@ def _layer7(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -318,7 +309,7 @@ def _layer7(weight, s, r, q, p, set_cnot_wires):
     RX(-np.pi / 2, wires=q)
     Hadamard(wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -352,8 +343,7 @@ def _layer8(weight, s, r, q, p, set_cnot_wires):
         r (int): qubit index ``r``
         q (int): qubit index ``q``
         p (int): qubit index ``p``
-        set_cnot_wires (sequence[int]): two-element sequence with the indices of the qubits
-            the CNOT gates act on
+        set_cnot_wires (list[Wires]): list of CNOT wires
     """
 
     # U_1, U_2, U_3, U_4 acting on wires 's', 'r', 'q' and 'p'
@@ -362,7 +352,7 @@ def _layer8(weight, s, r, q, p, set_cnot_wires):
     Hadamard(wires=q)
     RX(-np.pi / 2, wires=p)
 
-    # Applying CNOTs between wires 's' and 'p'
+    # Applying CNOTs
     for cnot_wires in set_cnot_wires:
         CNOT(wires=cnot_wires)
 
@@ -381,9 +371,9 @@ def _layer8(weight, s, r, q, p, set_cnot_wires):
 
 
 @template
-def DoubleExcitationUnitary(weight, wires=None):
+def DoubleExcitationUnitary(weight, wires1=None, wires2=None):
     r"""Circuit to exponentiate the tensor product of Pauli matrices representing the
-    fermionic double-excitation operator entering the Unitary Coupled-Cluster Singles
+    double-excitation operator entering the Unitary Coupled-Cluster Singles
     and Doubles (UCCSD) ansatz. UCCSD is a VQE ansatz commonly used to run quantum
     chemistry simulations.
 
@@ -410,26 +400,37 @@ def DoubleExcitationUnitary(weight, wires=None):
         \hat{X}_s \hat{X}_r \hat{X}_q \hat{Y}_p - \mathrm{H.c.}  ) \Big\}
 
     The quantum circuit to exponentiate the tensor product of Pauli matrices entering
-    the latter equation is shown below:
+    the latter equation is shown below (see `arXiv:1805.04340 <https://arxiv.org/abs/1805.04340>`_):
 
     |
 
     .. figure:: ../../_static/templates/subroutines/double_excitation_unitary.png
-
-    |
         :align: center
         :width: 60%
         :target: javascript:void(0);
 
+    |
+
     As explained in `Seely et al. (2012) <https://arxiv.org/abs/1208.5986>`_,
     the exponential of a tensor product of Pauli-Z operators can be decomposed in terms of
-    :math:`2(n-1)` CNOT gates and a single-qubit Z-rotation. If there are :math:`X` or
-    :math:`Y` Pauli matrices in the product, the Hadamard (:math:`H`) or :math:`R_x` gate has
-    to be applied to change to the :math:`X` or :math:`Y` basis, respectively.
+    :math:`2(n-1)` CNOT gates and a single-qubit Z-rotation referred to as :math:`U_\theta` in
+    the figure above. If there are :math:`X` or:math:`Y` Pauli matrices in the product, the
+    Hadamard (:math:`H`) or :math:`R_x` gate has to be applied to change to the :math:`X`
+    or :math:`Y` basis, respectively. The latter operations are denoted as
+    :math:`U_1`, :math:`U_2`, :math:`U_3` and :math:`U_4` in the figure above. See the
+    Usage Details section for more details.
 
     Args:
         weight (float): angle :math:`\theta` entering the Z rotation acting on wire ``p``
-        wires (sequence[int]): four-element sequence with the qubit indices ``s, r, q, p``
+        wires1 (Iterable or Wires): Wires of the qubits representing the subset of occupied orbitals
+            in the interval ``[s, r]``. Accepts an iterable of numbers or strings, or a Wires object,
+            with minimum length 2. The first wire is interpreted as ``s`` and the last wire as ``r``.
+            Wires in between are acted on with CNOT gates to compute the parity of the set of qubits.
+        wires2 (Iterable or Wires): Wires of the qubits representing the subset of unoccupied
+            orbitals in the interval ``[q, p]``. Accepts an iterable of numbers or strings, or a
+            Wires object. Must be of minimum length 2. The first wire is interpreted as ``q`` and
+            the last wire is interpreted as ``p``. Wires in between are acted on with CNOT gates
+            to compute the parity of the set of qubits.
 
     Raises:
         ValueError: if inputs do not have the correct format
@@ -458,10 +459,10 @@ def DoubleExcitationUnitary(weight, wires=None):
                H, R_x(-\frac{\pi}{2}), R_z(-\frac{\theta}{8}) \bigg] \Bigg\}
 
         #. For a given quadruple ``[s, r, q, p]`` with :math:`p>q>r>s`, seventy-two single-qubit
-           operations are applied. Notice also that consecutive CNOT gates act on qubits with
-           indices between ``s`` and ``r`` and ``q`` and ``p`` while a single CNOT acts on wires
-           ``r`` and ``q``. The operations performed across these qubits are shown in dashed lines
-           in the figure above.
+           and ``16*(len(wires1)-1 + len(wires2)-1 + 1)`` CNOT operations are applied.
+           Consecutive CNOT gates act on qubits with indices between ``s`` and ``r`` and
+           ``q`` and ``p`` while a single CNOT acts on wires ``r`` and ``q``. The operations
+           performed across these qubits are shown in dashed lines in the figure above.
 
         An example of how to use this template is shown below:
 
@@ -473,29 +474,31 @@ def DoubleExcitationUnitary(weight, wires=None):
             dev = qml.device('default.qubit', wires=5)
 
             @qml.qnode(dev)
-            def circuit(weight, pphh=None):
-                DoubleExcitationUnitary(weight, wires=pphh)
+            def circuit(weight, wires1=None, wires2=None):
+                DoubleExcitationUnitary(weight, wires1=wires1, wires2=wires2)
                 return qml.expval(qml.PauliZ(0))
 
             weight = 1.34817
-            double_excitation = [0, 1, 3, 4]
-            print(circuit(weight, pphh=double_excitation))
+            print(circuit(weight, wires1=[0, 1], wires2=[2, 3, 4]))
 
     """
 
     ##############
     # Input checks
 
-    check_no_variable(wires, msg="'wires' cannot be differentiable")
+    wires1 = Wires(wires1)
+    wires2 = Wires(wires2)
 
-    wires = check_wires(wires)
-
-    expected_shape = (4,)
-    check_shape(
-        wires,
-        expected_shape,
-        msg="'wires' must be of shape {}; got {}".format(expected_shape, get_shape(wires)),
-    )
+    if len(wires1) < 2:
+        raise ValueError(
+            "expected at least two wires representing the occupied orbitals; "
+            "got {}".format(len(wires1))
+        )
+    if len(wires2) < 2:
+        raise ValueError(
+            "expected at least two wires representing the unoccupied orbitals; "
+            "got {}".format(len(wires2))
+        )
 
     expected_shape = ()
     check_shape(
@@ -504,30 +507,18 @@ def DoubleExcitationUnitary(weight, wires=None):
         msg="'weight' must be of shape {}; got {}".format(expected_shape, get_shape(weight)),
     )
 
-    check_type(wires, [list], msg="'wires' must be a list; got {}".format(wires))
-    for w in wires:
-        check_type(w, [int], msg="'wires' must be a list of integers; got {}".format(wires))
-
-    if wires != sorted(wires):
-        raise ValueError(
-            "Elements of 'wires' must satisfy that wires_3 > wires_2 > wires_1 > wires_0.\n"
-            "Got wires[3]={}, wires[2]={}, wires[1]={}, wires[0]={}".format(*wires)
-        )
-
-    if (wires[1] <= wires[0]) or (wires[3] <= wires[2]):
-        raise ValueError(
-            "Elements of 'wires' must satisfy that wires_1 > wires_0 and wires_3 > wires_2.\n"
-            "Got wires[3]={}, wires[2]={}, wires[1]={}, wires[0]={}".format(*wires)
-        )
-
     ###############
 
-    s, r, q, p = wires
+    s = wires1[0]
+    r = wires1[-1]
+    q = wires2[0]
+    p = wires2[-1]
 
-    # Sequence of the wires entering the CNOTs between wires 's' and 'p'
-    set_cnot_wires = (
-        [[l, l + 1] for l in range(s, r)] + [[r, q]] + [[l, l + 1] for l in range(q, p)]
-    )
+    # Sequence of the wires entering the CNOTs
+    cnots_occ = [wires1.subset([l, l + 1]) for l in range(len(wires1) - 1)]
+    cnots_unocc = [wires2.subset([l, l + 1]) for l in range(len(wires2) - 1)]
+
+    set_cnot_wires = cnots_occ + [Wires([r, q])] + cnots_unocc
 
     # Apply the first layer
     _layer1(weight, s, r, q, p, set_cnot_wires)

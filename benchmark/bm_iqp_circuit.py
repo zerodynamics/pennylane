@@ -47,29 +47,7 @@ def random_iqp_wires(n_wires):
     # The global seed was fixed during benchmark construction
     # so this is actually deterministic
     a = random.random()
-    return random.sample(range(n_wires), math.ceil(3 * a))
-
-
-def circuit(n=10, n_wires=3):
-    """Mutable IQP quantum circuit."""
-
-    for i in range(n_wires):
-        qml.Hadamard(i)
-
-    for i in range(n * n_wires):
-        wires = random_iqp_wires(n_wires)
-
-        if len(wires) == 1:
-            qml.PauliZ(wires=wires)
-        elif len(wires) == 2:
-            qml.CZ(wires=wires)
-        elif len(wires) == 3:
-            CCZ(wires)
-
-    for i in range(n_wires):
-        qml.Hadamard(i)
-
-    return qml.expval(qml.PauliZ(0))
+    return random.sample(range(n_wires), math.ceil(min(2, n_wires) * a))
 
 
 class Benchmark(bu.BaseBenchmark):
@@ -79,7 +57,7 @@ class Benchmark(bu.BaseBenchmark):
     """
 
     name = "IQP circuit"
-    min_wires = 3
+    min_wires = 1
     n_vals = range(3, 27, 3)
 
     def benchmark(self, n=10):
@@ -90,7 +68,26 @@ class Benchmark(bu.BaseBenchmark):
         if self.verbose:
             print("circuit: {} IQP gates, {} wires".format(n * self.n_wires, self.n_wires))
 
+        def circuit():
+            """Mutable IQP quantum circuit."""
+            for i in range(self.n_wires):
+                qml.Hadamard(i)
+
+            for i in range(n * self.n_wires):
+                wires = random_iqp_wires(self.n_wires)
+                if len(wires) == 1:
+                    qml.PauliZ(wires=wires)
+                elif len(wires) == 2:
+                    qml.CZ(wires=wires)
+                elif len(wires) == 3:
+                    CCZ(wires)
+
+            for i in range(self.n_wires):
+                qml.Hadamard(i)
+
+            return bu.expval(qml.PauliZ(0))
+
         qnode = bu.create_qnode(circuit, self.device, mutable=True)
-        qnode(n=n, n_wires=self.n_wires)
+        qnode()
 
         return True

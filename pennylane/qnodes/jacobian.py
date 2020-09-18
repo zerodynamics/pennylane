@@ -28,8 +28,7 @@ DEFAULT_STEP_SIZE_ANALYTIC = 1e-7
 
 
 class JacobianQNode(BaseQNode):
-    """Quantum node that can be differentiated with respect to its positional parameters.
-    """
+    """Quantum node that can be differentiated with respect to its positional parameters."""
 
     def __init__(self, func, device, mutable=True, **kwargs):
         super().__init__(func, device, mutable=mutable, **kwargs)
@@ -183,7 +182,7 @@ class JacobianQNode(BaseQNode):
         .. note::
            The finite difference method is sensitive to statistical noise in the circuit output,
            since it compares the output at two points infinitesimally close to each other. Hence the
-           'F' method requires exact expectation values, i.e., ``analytic=True`` in simulation plugins.
+           'F' method requires exact expectation values, i.e., ``analytic=True`` in simulator devices.
 
         Args:
             args (nested Iterable[float] or float): positional arguments to the quantum function (differentiable)
@@ -254,7 +253,9 @@ class JacobianQNode(BaseQNode):
         bad = inds_using(None)
         if bad:
             # get bad argument name
-            bad_var_names = {v.name for v in _flatten(self.arg_vars) if v.idx in bad}
+            bad_var_names = {
+                v.name for v in _flatten(self.arg_vars) if hasattr(v, "idx") and v.idx in bad
+            }
             raise ValueError(
                 "Cannot differentiate with respect to argument(s) {}.".format(bad_var_names)
             )
@@ -269,7 +270,9 @@ class JacobianQNode(BaseQNode):
             bad = inds_using("F")
 
             # get bad argument name
-            bad_var_names = {v.name for v in _flatten(self.arg_vars) if v.idx in bad}
+            bad_var_names = {
+                v.name for v in _flatten(self.arg_vars) if hasattr(v, "idx") and v.idx in bad
+            }
 
             if bad:
                 raise ValueError(

@@ -16,9 +16,9 @@ Contains the ``BasisStatePreparation`` template.
 """
 
 import pennylane as qml
-
 from pennylane.templates.decorator import template
-from pennylane.templates.utils import check_wires, check_no_variable, check_shape, get_shape
+from pennylane.templates.utils import check_shape, get_shape
+from pennylane.wires import Wires
 
 
 @template
@@ -36,7 +36,8 @@ def BasisStatePreparation(basis_state, wires):
         basis_state (array): Input array of shape ``(N,)``, where N is the number of wires
             the state preparation acts on. ``N`` must be smaller or equal to the total
             number of wires of the device.
-        wires (Sequence[int]): sequence of qubit indices that the template acts on
+        wires (Iterable or Wires): Wires that the template acts on. Accepts an iterable of numbers or strings, or
+            a Wires object.
 
     Raises:
         ValueError: if inputs do not have the correct format
@@ -45,7 +46,7 @@ def BasisStatePreparation(basis_state, wires):
     ######################
     # Input checks
 
-    wires = check_wires(wires)
+    wires = Wires(wires)
 
     expected_shape = (len(wires),)
     check_shape(
@@ -53,13 +54,6 @@ def BasisStatePreparation(basis_state, wires):
         expected_shape,
         msg=" 'basis_state' must be of shape {}; got {}."
         "".format(expected_shape, get_shape(basis_state)),
-    )
-
-    # basis_state cannot be trainable
-    check_no_variable(
-        basis_state,
-        msg="'basis_state' cannot be differentiable; must be passed as a keyword argument "
-        "to the quantum node",
     )
 
     # basis_state is guaranteed to be a list of binary values

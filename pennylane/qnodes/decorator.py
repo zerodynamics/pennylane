@@ -22,10 +22,18 @@ from .device_jacobian import DeviceJacobianQNode
 from .jacobian import JacobianQNode
 from .qubit import QubitQNode
 from .passthru import PassthruQNode
+from .rev import ReversibleQNode
 
 
 PARAMETER_SHIFT_QNODES = {"qubit": QubitQNode, "cv": CVQNode}
-ALLOWED_DIFF_METHODS = ("best", "backprop", "device", "parameter-shift", "finite-diff")
+ALLOWED_DIFF_METHODS = (
+    "best",
+    "backprop",
+    "device",
+    "parameter-shift",
+    "finite-diff",
+    "reversible",
+)
 ALLOWED_INTERFACES = ("autograd", "numpy", "torch", "tf")
 
 
@@ -73,8 +81,8 @@ def _get_qnode_class(device, interface, diff_method):
         if allows_passthru:
             if interface != passthru_interface:
                 raise ValueError(
-                    "Device {} only supports the {} interface when "
-                    "diff_method='backprop'".format(device.short_name, passthru_interface)
+                    "Device {} only supports diff_method='backprop' when using the "
+                    "{} interface.".format(device.short_name, passthru_interface)
                 )
             return PassthruQNode
 
@@ -100,6 +108,19 @@ def _get_qnode_class(device, interface, diff_method):
         raise ValueError(
             "The parameter shift rule is not available for devices with model {}.".format(model)
         )
+
+    if diff_method == "reversible":
+        # pylint: disable=protected-access
+
+        # TODO: update when all capabilities keys changed to "supports_reversible_diff"
+        supports_reverse = device.capabilities().get(
+            "supports_reversible_diff", False
+        ) or device.capabilities().get("reversible_diff", False)
+        if not supports_reverse:
+            raise ValueError(
+                "Reversible differentiation method not supported on {}".format(device.short_name)
+            )
+        return ReversibleQNode
 
     if diff_method in ALLOWED_DIFF_METHODS:
         # finite differences
@@ -192,8 +213,16 @@ def QNode(func, device, *, interface="autograd", mutable=True, diff_method="best
             * ``"backprop"``: Use classical backpropagation. Only allowed on simulator
               devices that are classically end-to-end differentiable, for example
               :class:`default.tensor.tf <~.DefaultTensorTF>`. Note that the returned
-              QNode can only be used with the machine learning framework supported
+              QNode can only be used with the machine-learning framework supported
               by the device; a separate ``interface`` argument should not be passed.
+
+            * ``"reversible"``: Uses a reversible method for computing the gradient.
+              This method is similar to ``"backprop"``, but trades off increased
+              runtime with significantly lower memory usage. Compared to the
+              parameter-shift rule, the reversible method can be faster or slower,
+              depending on the density and location of parametrized gates in a circuit.
+              Only allowed on (simulator) devices with the "reversible" capability,
+              for example :class:`default.qubit <~.DefaultQubit>`.
 
             * ``"device"``: Queries the device directly for the gradient.
               Only allowed on devices that provide their own gradient rules.
@@ -213,7 +242,9 @@ def QNode(func, device, *, interface="autograd", mutable=True, diff_method="best
     qnode_class = _get_qnode_class(device, interface, diff_method)
     qnode_ = qnode_class(func, device, mutable=mutable, **kwargs)
 
-    if not isinstance(qnode_, PassthruQNode):
+    if isinstance(qnode_, PassthruQNode):
+        qnode_.interface = interface
+    else:
         # PassthruQNode's do not support interface conversions
         qnode_ = _apply_interface(qnode_, interface, diff_method)
 
@@ -269,6 +300,14 @@ def qnode(device, *, interface="autograd", mutable=True, diff_method="best", **k
               QNode can only be used with the machine learning framework supported
               by the device; a separate ``interface`` argument should not be passed.
 
+            * ``"reversible"``: Uses a reversible method for computing the gradient.
+              This method is similar to ``"backprop"``, but trades off increased
+              runtime with significantly lower memory usage. Compared to the
+              parameter-shift rule, the reversible method can be faster or slower,
+              depending on the density and location of parametrized gates in a circuit.
+              Only allowed on (simulator) devices with the "reversible" capability,
+              for example :class:`default.qubit <~.DefaultQubit>`.
+
             * ``"device"``: Queries the device directly for the gradient.
               Only allowed on devices that provide their own gradient rules.
 
@@ -283,7 +322,7 @@ def qnode(device, *, interface="autograd", mutable=True, diff_method="best", **k
         h (float): Step size for the finite difference method. Default is ``1e-7`` for analytic devices, or
             ``0.3`` for non-analytic devices (those that estimate expectation values with a finite number of shots).
         order (int): order for the finite-difference method, must be 1 (default) or 2
-   """
+    """
 
     @lru_cache()
     def qfunc_decorator(func):

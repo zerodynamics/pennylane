@@ -22,7 +22,7 @@ import itertools
 import numpy as np
 
 import pennylane as qml
-from pennylane.operation import Observable, CV, ActsOn, ObservableReturnTypes
+from pennylane.operation import Observable, CV, WiresEnum, ObservableReturnTypes
 from pennylane.utils import _flatten, unflatten
 from pennylane.circuit_graph import CircuitGraph, _is_observable
 from pennylane.variable import Variable
@@ -97,7 +97,7 @@ def _decompose_queue(ops, device):
         if device.supports_operation(op.name):
             new_ops.append(op)
         else:
-            decomposed_ops = op.decomposition(*op.params, wires=op.wires)
+            decomposed_ops = op.decomposition(*op.data, wires=op.wires)
             if op.inverse:
                 decomposed_ops = qml.inv(decomposed_ops)
 
@@ -138,7 +138,7 @@ class BaseQNode(qml.QueuingContext):
     (corresponding to a :ref:`variational circuit <glossary_variational_circuit>`)
     and the computational device it is executed on.
 
-    The QNode calls the quantum function to construct a :class:`.CircuitGraph` instance represeting
+    The QNode calls the quantum function to construct a :class:`.CircuitGraph` instance representing
     the quantum circuit. The circuit can be either
 
     * *mutable*, which means the quantum function is called each time the QNode is evaluated, or
@@ -192,6 +192,8 @@ class BaseQNode(qml.QueuingContext):
         that depend on it.
         """
 
+        self._trainable_args = None
+
         self._metric_tensor_subcircuits = None
         """dict[tuple[int], dict[str, Any]]: circuit descriptions for computing the metric tensor"""
 
@@ -208,8 +210,7 @@ class BaseQNode(qml.QueuingContext):
         return detail.format(self.device.short_name, self.func.__name__, self.num_wires)
 
     def print_applied(self):
-        """Prints the most recently applied operations from the QNode.
-        """
+        """Prints the most recently applied operations from the QNode."""
         if self.circuit is None:
             print("QNode has not yet been executed.")
             return
@@ -264,6 +265,58 @@ class BaseQNode(qml.QueuingContext):
             "The QNode can only be drawn after its CircuitGraph has been constructed."
         )
 
+    def set_trainable_args(self, arg_indices):
+        """Store the indices of quantum function positional arguments
+        that support differentiability.
+
+        Args:
+            args (None or Set[int]): Differentiable positional argument indices. A
+                value of ``None`` means that all argument indices are differentiable.
+        """
+        if not self.mutable and self.circuit is not None:
+
+            if self.get_trainable_args() == arg_indices:
+                return
+
+            raise QuantumFunctionError(
+                "The trainability of arguments on immutable QNodes cannot be modified after the first evaluation."
+            )
+
+        if arg_indices is None:
+            # all arguments are differentiable
+            self._trainable_args = None
+            return
+
+        if not arg_indices:
+            # The provided arg_indices are an empty set;
+            # no arguments are differentiable.
+            self._trainable_args = set()
+            return
+
+        # Perform validation
+        if not self.func.var_pos and max(arg_indices) > self.func.n_pos:
+            # QNode does not allow variable positional arguments (*args), and
+            # the provided index set contains a value larger than the number
+            # of positional arguments.
+            raise ValueError(
+                f"Argument index not available. QNode has at most {self.func.n_pos} arguments."
+            )
+
+        if any(not isinstance(i, int) or i < 0 for i in arg_indices):
+            raise ValueError("Argument indices must be positive integers.")
+
+        self._trainable_args = arg_indices
+
+    def get_trainable_args(self):
+        """Returns the indices of quantum function positional arguments
+        that support differentiability.
+
+        Returns:
+            None or Set[int]: Differentiable positional argument indices. A
+                value of ``None`` means that all argument indices are differentiable.
+        """
+        return self._trainable_args
+
     def _set_variables(self, args, kwargs):
         """Store the current values of the quantum function parameters in the Variable class
         so the Operators may access them.
@@ -272,7 +325,7 @@ class BaseQNode(qml.QueuingContext):
             args (tuple[Any]): positional (differentiable) arguments
             kwargs (dict[str, Any]): auxiliary arguments
         """
-        Variable.positional_arg_values = np.array(list(_flatten(args)))
+        Variable.positional_arg_values = list(_flatten(args))
         if not self.mutable:
             # only immutable circuits access auxiliary arguments through Variables
             Variable.kwarg_values = {k: np.array(list(_flatten(v))) for k, v in kwargs.items()}
@@ -298,39 +351,38 @@ class BaseQNode(qml.QueuingContext):
             return list(itertools.filterfalse(_is_observable, succ))
         return succ
 
-    def _remove_operator(self, operator):
-        if isinstance(operator, Observable) and operator.return_type is not None:
-            self.obs_queue.remove(operator)
+    def _remove(self, obj):
+        if isinstance(obj, Observable) and obj.return_type is not None:
+            self.obs_queue.remove(obj)
         else:
-            self.queue.remove(operator)
+            self.queue.remove(obj)
 
-    def _append_operator(self, operator):
-        if operator.num_wires == ActsOn.AllWires:
-            if set(operator.wires) != set(range(self.num_wires)):
-                raise QuantumFunctionError(
-                    "Operator {} must act on all wires".format(operator.name)
-                )
+    def _append(self, obj):
+        if obj.num_wires == WiresEnum.AllWires:
+            # check here only if enough wires
+            if len(obj.wires) != self.num_wires:
+                raise QuantumFunctionError("Operator {} must act on all wires".format(obj.name))
 
         # Make sure only existing wires are used.
-        for w in _flatten(operator.wires):
-            if w < 0 or w >= self.num_wires:
+        for w in obj.wires:
+            if w not in self.device.wires:
                 raise QuantumFunctionError(
                     "Operation {} applied to invalid wire {} "
-                    "on device with {} wires.".format(operator.name, w, self.num_wires)
+                    "on device with wires {}.".format(obj.name, w.labels, self.device.wires.labels)
                 )
 
         # observables go to their own, temporary queue
-        if isinstance(operator, Observable):
-            if operator.return_type is None:
-                self.queue.append(operator)
+        if isinstance(obj, Observable):
+            if obj.return_type is None:
+                self.queue.append(obj)
             else:
-                self.obs_queue.append(operator)
+                self.obs_queue.append(obj)
         else:
             if self.obs_queue:
                 raise QuantumFunctionError(
                     "State preparations and gates must precede measured observables."
                 )
-            self.queue.append(operator)
+            self.queue.append(obj)
 
     def _determine_structured_variable_name(self, parameter_value, prefix):
         """Determine the variable names corresponding to a parameter.
@@ -339,7 +391,8 @@ class BaseQNode(qml.QueuingContext):
         or list structure.
 
         Args:
-            parameter_value (Union[Number, Sequence[Any], array[Any]]): The value of the parameter. This will be used as a blueprint for the returned variable name(s).
+            parameter_value (Union[Number, Sequence[Any], array[Any]]): The value of the parameter. This will be used
+                as a blueprint for the returned variable name(s).
             prefix (str): Prefix that will be added to the variable name(s), usually the parameter name
 
         Returns:
@@ -423,8 +476,20 @@ class BaseQNode(qml.QueuingContext):
         arg_vars = [Variable(idx, name) for idx, name in enumerate(_flatten(variable_name_strings))]
         self.num_variables = len(arg_vars)
 
-        # arrange the newly created Variables in the nested structure of args
-        arg_vars = unflatten(arg_vars, args)
+        # Arrange the newly created Variables in the nested structure of args.
+        # Make sure that NumPy scalars are converted into Python scalars.
+        arg_vars = [
+            i.item() if isinstance(i, np.ndarray) and i.ndim == 0 else i
+            for i in unflatten(arg_vars, args)
+        ]
+
+        if self._trainable_args is not None and len(self._trainable_args) != len(args):
+            # If some of the input arguments are marked as non-differentiable,
+            # then replace the variable instances in arg_vars back with the
+            # original objects.
+            for a, _ in enumerate(args):
+                if a not in self._trainable_args:
+                    arg_vars[a] = args[a]
 
         # kwargs
         # if not mutable: must convert auxiliary arguments to named Variables so they can be updated without re-constructing the circuit
@@ -518,13 +583,13 @@ class BaseQNode(qml.QueuingContext):
         # map each free variable to the operators which depend on it
         self.variable_deps = {k: [] for k in range(self.num_variables)}
         for op in self.ops:
-            for j, p in enumerate(_flatten(op.params)):
+            for j, p in enumerate(_flatten(op.data)):
                 if isinstance(p, Variable):
                     if not p.is_kwarg:  # ignore auxiliary arguments
                         self.variable_deps[p.idx].append(ParameterDependency(op, j))
 
         # generate the DAG
-        self.circuit = CircuitGraph(self.ops, self.variable_deps)
+        self.circuit = CircuitGraph(self.ops, self.variable_deps, self.device.wires)
 
         # check for unused positional params
         if self.kwargs.get("par_check", False):
@@ -591,7 +656,14 @@ class BaseQNode(qml.QueuingContext):
                 self.output_conversion = np.squeeze
             elif res.return_type is ObservableReturnTypes.Probability:
                 self.output_conversion = np.squeeze
-                self.output_dim = 2 ** len(res.wires)
+
+                if self.model == "qubit":
+                    num_basis_states = 2
+                elif self.model == "cv":
+                    num_basis_states = getattr(self.device, "cutoff", 10)
+
+                self.output_dim = num_basis_states ** len(res.wires)
+
             else:
                 self.output_conversion = float
 
@@ -723,8 +795,7 @@ class BaseQNode(qml.QueuingContext):
         return kwargs
 
     def __call__(self, *args, **kwargs):
-        """Wrapper for :meth:`BaseQNode.evaluate`.
-        """
+        """Wrapper for :meth:`BaseQNode.evaluate`."""
         return self.evaluate(args, kwargs)
 
     def evaluate(self, args, kwargs):
@@ -784,7 +855,9 @@ class BaseQNode(qml.QueuingContext):
             # create a circuit graph containing the existing operations, and the
             # observables to be evaluated.
             circuit_graph = CircuitGraph(
-                self.circuit.operations + list(obs), self.circuit.variable_deps
+                self.circuit.operations + list(obs),
+                self.circuit.variable_deps,
+                self.device.wires,
             )
             ret = self.device.execute(circuit_graph)
         else:

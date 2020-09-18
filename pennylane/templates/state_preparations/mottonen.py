@@ -21,8 +21,9 @@ from scipy import sparse
 import pennylane as qml
 
 from pennylane.templates.decorator import template
-from pennylane.templates.utils import check_wires, check_shape, get_shape
+from pennylane.templates.utils import check_shape, get_shape
 from pennylane.variable import Variable
+from pennylane.wires import Wires
 
 
 # pylint: disable=len-as-condition,arguments-out-of-order
@@ -163,7 +164,7 @@ def _get_alpha_z(omega, n, k):
     Args:
         omega (float): phase of the input
         n (int): total number of qubits
-        k (int): current qubit
+        k (int): index of current qubit
 
     Returns:
         scipy.sparse.dok_matrix[np.float64]: a sparse vector representing :math:`\alpha^z_k`
@@ -186,11 +187,12 @@ def _get_alpha_y(a, n, k):
     Args:
         omega (float): phase of the input
         n (int): total number of qubits
-        k (int): current qubit
+        k (int): index of current qubit
 
     Returns:
         scipy.sparse.dok_matrix[np.float64]: a sparse vector representing :math:`\alpha^y_k`
     """
+
     alpha = sparse.dok_matrix((2 ** (n - k), 1), dtype=np.float64)
 
     numerator = sparse.dok_matrix((2 ** (n - k), 1), dtype=np.float64)
@@ -237,7 +239,8 @@ def MottonenStatePreparation(state_vector, wires):
         state_vector (array): Input array of shape ``(2^N,)``, where N is the number of wires
             the state preparation acts on. ``N`` must be smaller or equal to the total
             number of wires.
-        wires (Sequence[int]): sequence of qubit indices that the template acts on
+        wires (Iterable or Wires): Wires that the template acts on. Accepts an iterable of numbers or strings, or
+            a Wires object.
 
     Raises:
         ValueError: if inputs do not have the correct format
@@ -246,7 +249,7 @@ def MottonenStatePreparation(state_vector, wires):
     ###############
     # Input checks
 
-    wires = check_wires(wires)
+    wires = Wires(wires)
 
     n_wires = len(wires)
     expected_shape = (2 ** n_wires,)
@@ -271,8 +274,6 @@ def MottonenStatePreparation(state_vector, wires):
     # Change ordering of indices, original code was for IBM machines
     state_vector = np.array(state_vector).reshape([2] * n_wires).T.flatten()[:, np.newaxis]
     state_vector = sparse.dok_matrix(state_vector)
-
-    wires = np.array(wires)
 
     a = sparse.dok_matrix(state_vector.shape)
     omega = sparse.dok_matrix(state_vector.shape)

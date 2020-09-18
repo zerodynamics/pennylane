@@ -24,13 +24,14 @@ from autograd import jacobian as _jacobian
 from semantic_version import Version, Spec
 
 # QueuingContext needs to be imported before all other pennylane imports
-from ._queuing_context import QueuingContext  # pylint: disable=wrong-import-order
+from ._queuing import QueuingContext  # pylint: disable=wrong-import-order
 import pennylane.operation
 
 import pennylane.init
 import pennylane.templates
 import pennylane.qnn
-from pennylane.templates import template, broadcast
+import pennylane.qaoa as qaoa
+from pennylane.templates import template, broadcast, layer
 from pennylane.about import about
 from pennylane.vqe import Hamiltonian, VQECost
 
@@ -47,15 +48,15 @@ from .utils import inv
 from ._version import __version__
 from .io import *
 
-
 # Look for an existing configuration file
 default_config = Configuration("config.toml")
 
 
-# get list of installed plugin devices
+# get list of installed devices
 plugin_devices = {
     entry.name: entry for entry in pkg_resources.iter_entry_points("pennylane.plugins")
 }
+
 
 # get chemistry plugin
 class NestedAttrError:
@@ -91,25 +92,59 @@ for entry in pkg_resources.iter_entry_points("pennylane.qchem"):
 
 def device(name, *args, **kwargs):
     r"""device(name, wires=1, *args, **kwargs)
-    Load a plugin :class:`~.Device` and return the instance.
+    Load a :class:`~.Device` and return the instance.
 
     This function is used to load a particular quantum device,
     which can then be used to construct QNodes.
 
-    PennyLane comes with support for the following two devices:
+    PennyLane comes with support for the following devices:
 
-    * :mod:`'default.qubit' <pennylane.plugins.default_qubit>`: a simple pure
+    * :mod:`'default.qubit' <pennylane.devices.default_qubit>`: a simple
       state simulator of qubit-based quantum circuit architectures.
 
-    * :mod:`'default.gaussian' <pennylane.plugins.default_gaussian>`: a simple simulator
+    * :mod:`'default.gaussian' <pennylane.devices.default_gaussian>`: a simple simulator
       of Gaussian states and operations on continuous-variable circuit architectures.
+
+    * :mod:`'default.qubit.tf' <pennylane.devices.default_qubit_tf>`: a state simulator
+      of qubit-based quantum circuit architectures written in TensorFlow, which allows
+      automatic differentiation through the simulation.
+
+    * :mod:`'default.qubit.autograd' <pennylane.devices.default_qubit_autograd>`: a state simulator
+      of qubit-based quantum circuit architectures which allows
+      automatic differentiation through the simulation via python's autograd library.
 
     In addition, additional devices are supported through plugins — see
     the  `available plugins <https://pennylane.ai/plugins.html>`_ for more
     details.
 
     All devices must be loaded by specifying their **short-name** as listed above,
-    followed by the number of *wires* (subsystems) you wish to initialize.
+    followed by the **wires** (subsystems) you wish to initialize. The *wires*
+    argument can be an integer, in which case the wires of the device are addressed
+    by consecutive integers:
+
+    .. code-block:: python
+
+        dev = qml.device('default.qubit', wires=5)
+
+        def circuit():
+           qml.Hadamard(wires=1)
+           qml.Hadamard(wires=[0])
+           qml.CNOT(wires=[3, 4])
+           ...
+
+    The *wires* argument can also be a sequence of unique numbers or strings, specifying custom wire labels
+    that the user employs to address the wires:
+
+    .. code-block:: python
+
+        dev = qml.device('default.qubit', wires=['ancilla', 'q11', 'q12', -1, 1])
+
+        def circuit():
+           qml.Hadamard(wires='q11')
+           qml.Hadamard(wires=['ancilla'])
+           qml.CNOT(wires=['q12', -1] )
+           ...
+
 
     Some devices may accept additional arguments. For instance,
     ``default.gaussian`` accepts the keyword argument ``hbar``, to set
@@ -145,7 +180,7 @@ def device(name, *args, **kwargs):
         kwargs.pop("config", None)
         options.update(kwargs)
 
-        # loads the plugin device class
+        # loads the device class
         plugin_device_class = plugin_devices[name].load()
 
         if Version(version()) not in Spec(plugin_device_class.pennylane_requires):
@@ -156,7 +191,7 @@ def device(name, *args, **kwargs):
                 )
             )
 
-        # load plugin device
+        # load device
         return plugin_device_class(*args, **options)
 
     raise DeviceError("Device does not exist. Make sure the required plugin is installed.")
@@ -165,13 +200,12 @@ def device(name, *args, **kwargs):
 def grad(func, argnum=None):
     """Returns the gradient as a callable function of (functions of) QNodes.
 
-    This is a wrapper around the :mod:`autograd.grad` function.
     Function arguments with the property ``requires_grad`` set to ``False``
     will automatically be excluded from the gradient computation, unless
     the ``argnum`` keyword argument is passed.
 
     Args:
-        func (function): a Python function or QNode that contains
+        func (function): a plain QNode, or a Python function that contains
             a combination of quantum and classical nodes
 
     Keyword Args:
@@ -213,7 +247,7 @@ def grad(func, argnum=None):
     return _gradient_function
 
 
-def jacobian(func, argnum):
+def jacobian(func, argnum=None):
     """Returns the Jacobian as a callable function of vector-valued
     (functions of) QNodes.
 
@@ -233,11 +267,42 @@ def jacobian(func, argnum):
         function with respect to the arguments in argnum
     """
     # pylint: disable=no-value-for-parameter
-    if isinstance(argnum, int):
-        return _jacobian(func, argnum)
-    return lambda *args, **kwargs: _np.stack(
-        [_jacobian(func, arg)(*args, **kwargs) for arg in argnum]
-    ).T
+
+    if argnum is not None:
+        # for backwards compatibility with existing code
+        # that manually specifies argnum
+        if isinstance(argnum, int):
+            return _jacobian(func, argnum)
+
+        return lambda *args, **kwargs: _np.stack(
+            [_jacobian(func, arg)(*args, **kwargs) for arg in argnum]
+        ).T
+
+    def _jacobian_function(*args, **kwargs):
+        """Inspect the arguments for differentiability, and
+        compute the autograd gradient function with required argnums
+        dynamically.
+
+        This wrapper function is returned to the user instead of autograd.jacobian,
+        so that we can take into account cases where the user computes the
+        jacobian function once, but then calls it with arguments that change
+        in differentiability.
+        """
+        argnum = []
+
+        for idx, arg in enumerate(args):
+            if getattr(arg, "requires_grad", True):
+                argnum.append(idx)
+
+        if not argnum:
+            return tuple()
+
+        if len(argnum) == 1:
+            return _jacobian(func, argnum[0])(*args, **kwargs)
+
+        return _np.stack([_jacobian(func, arg)(*args, **kwargs) for arg in argnum]).T
+
+    return _jacobian_function
 
 
 def version():

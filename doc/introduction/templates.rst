@@ -133,7 +133,9 @@ Layer templates
 
 .. currentmodule:: pennylane.templates.layers
 
-Layer architectures define sequences of trainable gates that are repeated like the layers in a neural network.
+Layer architectures define sequences of trainable gates that are repeated like the layers in a
+neural network. Note arbitrary templates or operations can also be layered using the
+:func:`~pennylane.layer` function.
 
 .. customgalleryitem::
     :link: ../code/api/pennylane.templates.layers.CVNeuralNetLayers.html
@@ -181,6 +183,11 @@ State preparation templates transform a given state into a sequence of gates pre
     :description: MottonnenStatePrep
     :figure: ../_static/templates/state_preparations/mottonen.png
 
+.. customgalleryitem::
+    :link: ../code/api/pennylane.templates.state_preparations.ArbitraryStatePreparation.html
+    :description: ArbitraryStatePreparation
+    :figure: ../_static/templates/subroutines/arbitrarystateprep.png
+
 .. raw:: html
 
         <div style='clear:both'></div>
@@ -212,6 +219,16 @@ of other templates.
     :link: ../code/api/pennylane.templates.subroutines.UCCSD.html
     :description: UCCSD
     :figure: ../_static/templates/subroutines/uccsd.png  
+
+.. customgalleryitem::
+    :link: ../code/api/pennylane.templates.subroutines.ArbitraryUnitary.html
+    :description: ArbitraryUnitary
+    :figure: ../_static/templates/subroutines/arbitraryunitary.png
+
+.. customgalleryitem::
+  :link: ../code/api/pennylane.templates.subroutines.ApproxTimeEvolution.html
+  :description: ApproxTimeEvolution
+  :figure: ../_static/templates/subroutines/approx_time_evolution.png
 
 .. raw:: html
 

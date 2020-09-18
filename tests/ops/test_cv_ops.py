@@ -22,6 +22,7 @@ import pytest
 import pennylane
 from pennylane import numpy as np
 from pennylane.ops import cv
+from pennylane.wires import Wires
 
 s_vals = np.linspace(-3, 3, 13)
 phis = np.linspace(-2 * np.pi, 2 * np.pi, 11)
@@ -188,15 +189,15 @@ class TestNonGaussian:
         Heisenberg transformation of non-Gaussian gates."""
         op = cv.Kerr
         with pytest.raises(RuntimeError, match=r"not a Gaussian operation"):
-            op_ = op(*[0.1] * op.num_params, wires=[0] * op.num_wires)
-            op_.heisenberg_tr(op.num_wires)
+            op_ = op(*[0.1] * op.num_params, wires=range(op.num_wires))
+            op_.heisenberg_tr(Wires(range(op.num_wires)))
 
         op = cv.CrossKerr
-        with pytest.raises(ValueError):
-            op_ = op(*[0.1] * op.num_params, wires=[0] * op.num_wires)
-            op_.heisenberg_tr(op.num_wires)
+        with pytest.raises(RuntimeError):
+            op_ = op(*[0.1] * op.num_params, wires=range(op.num_wires))
+            op_.heisenberg_tr(Wires(range(op.num_wires)))
 
         op = cv.CubicPhase
         with pytest.raises(RuntimeError):
-            op_ = op(*[0.1] * op.num_params, wires=[0] * op.num_wires)
-            op_.heisenberg_tr(op.num_wires)
+            op_ = op(*[0.1] * op.num_params, wires=range(op.num_wires))
+            op_.heisenberg_tr(Wires(range(op.num_wires)))

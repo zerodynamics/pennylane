@@ -21,12 +21,11 @@ from pennylane.templates.decorator import template
 from pennylane.ops import QubitStateVector
 from pennylane.templates.utils import (
     check_shape,
-    check_no_variable,
-    check_wires,
     check_type,
     get_shape,
 )
 from pennylane.variable import Variable
+from pennylane.wires import Wires
 
 # tolerance for normalization
 TOLERANCE = 1e-10
@@ -57,7 +56,8 @@ def AmplitudeEmbedding(features, wires, pad=None, normalize=False):
 
     Args:
         features (array): input array of shape ``(2^n,)``
-        wires (Sequence[int] or int): :math:`n` qubit indices that the template acts on
+        wires (Iterable or Wires): Wires that the template acts on. Accepts an iterable of numbers or strings, or
+            a Wires object.
         pad (float or complex): if not None, the input is padded with this constant to size :math:`2^n`
         normalize (Boolean): controls the activation of automatic normalization
 
@@ -171,10 +171,7 @@ def AmplitudeEmbedding(features, wires, pad=None, normalize=False):
     #############
     # Input checks
 
-    check_no_variable(pad, msg="'pad' cannot be differentiable")
-    check_no_variable(normalize, msg="'normalize' cannot be differentiable")
-
-    wires = check_wires(wires)
+    wires = Wires(wires)
 
     n_amplitudes = 2 ** len(wires)
     expected_shape = (n_amplitudes,)
@@ -228,7 +225,7 @@ def AmplitudeEmbedding(features, wires, pad=None, normalize=False):
         else:
             raise ValueError(
                 "'features' must be a vector of length 1.0; got length {}."
-                "Use 'normalization=True' to automatically normalize.".format(norm)
+                "Use 'normalize=True' to automatically normalize.".format(norm)
             )
 
     ###############

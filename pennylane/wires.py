@@ -20,8 +20,7 @@ from numbers import Number
 
 
 class WireError(Exception):
-    """Exception raised by a :class:`~.pennylane.wires.Wire` object when it is unable to process wires.
-    """
+    """Exception raised by a :class:`~.pennylane.wires.Wire` object when it is unable to process wires."""
 
 
 def _process(wires):
@@ -29,7 +28,11 @@ def _process(wires):
 
     if isinstance(wires, Wires):
         # if input is already a Wires object, just return its wire tuple
-        return wires.wire_tuple
+        return wires.labels
+
+    elif isinstance(wires, (Number, str)):
+        # interpret as a single wire
+        return (wires,)
 
     elif isinstance(wires, Iterable) and all(isinstance(w, Wires) for w in wires):
         # if the elements are themselves Wires objects, merge them to a new one
@@ -41,10 +44,6 @@ def _process(wires):
         # if the elements are strings or numbers, turn iterable into tuple
         return tuple(wires)
 
-    elif isinstance(wires, Number):
-        # if the input is a single number, interpret as a single wire
-        return (wires,)
-
     else:
         raise WireError(
             "Wires must be represented by a number or string; got {} of type {}.".format(
@@ -54,9 +53,9 @@ def _process(wires):
 
 
 class Wires(Sequence):
-    """
-    A bookkeeping class for wires, which are ordered collections of unique objects. The :math:`i\text{th}` object
-    addresses the :math:`i\text{th}` quantum subsystem.
+    r"""
+    A bookkeeping class for wires, which are ordered collections of unique objects. The :math:`i\mathrm{th}` object
+    addresses the :math:`i\mathrm{th}` quantum subsystem.
 
     There is no conceptual difference between registers of multiple wires and single wires,
     which are just wire registers of length one.
@@ -71,41 +70,54 @@ class Wires(Sequence):
 
     def __init__(self, wires):
 
-        self.wire_tuple = _process(wires)
+        self._labels = _process(wires)
 
         # check that all wires are unique
-        if len(set(self.wire_tuple)) != len(self.wire_tuple):
+        if len(set(self.labels)) != len(self.labels):
             raise WireError("Wires must be unique; got {}.".format(wires))
 
     def __getitem__(self, idx):
-        """Method to support indexing. Returns a Wires object representing a register with a single wire."""
-        return Wires(self.wire_tuple[idx])
+        """Method to support indexing. Returns a Wires object representing a single wire."""
+        return Wires(self.labels[idx])
 
     def __len__(self):
         """Method to support ``len()``."""
-        return len(self.wire_tuple)
+        return len(self.labels)
 
     def __contains__(self, item):
         """Method checking if Wires object contains an object."""
         if isinstance(item, Wires):
             item = item.tolist()
         # if all wires can be found in tuple, return True, else False
-        return all(wire in self.wire_tuple for wire in item)
+        return all(wire in self.labels for wire in item)
 
     def __repr__(self):
         """Method defining the string representation of this class."""
-        return "<Wires = {}>".format(list(self.wire_tuple))
+        return "<Wires = {}>".format(list(self.labels))
 
     def __eq__(self, other):
         """Method to support the '==' operator. This will also implicitly define the '!=' operator."""
         # The order is respected in comparison, so that ``assert Wires([0, 1]) != Wires([1,0])``
         if isinstance(other, self.__class__):
-            return self.wire_tuple == other.wire_tuple
+            return self.labels == other.labels
         return False
 
     def __hash__(self):
         """Implements the hash function."""
-        return hash(repr(self.wire_tuple))
+        return hash(repr(self.labels))
+
+    def __array__(self):
+        """Defines a numpy array representation of the Wires object.
+
+        Returns:
+            ndarray: array representing Wires object
+        """
+        return np.array(self.labels)
+
+    @property
+    def labels(self):
+        """Get a tuple of the labels of this Wires object."""
+        return self._labels
 
     def toarray(self):
         """Returns a numpy array representation of the Wires object.
@@ -113,15 +125,15 @@ class Wires(Sequence):
         Returns:
             ndarray: array representing Wires object
         """
-        return np.array(self.wire_tuple)
+        return np.array(self.labels)
 
     def tolist(self):
         """Returns a list representation of the Wires object.
 
         Returns:
-            List: list representing Wires object
+            List: list of wire labels
         """
-        return list(self.wire_tuple)
+        return list(self.labels)
 
     def index(self, wire):
         """Overwrites a Sequence's ``index()`` function which returns the index of ``wire``.
@@ -138,9 +150,12 @@ class Wires(Sequence):
             if len(wire) != 1:
                 raise WireError("Can only retrieve index of a Wires object of length 1.")
 
-            return self.wire_tuple.index(wire.wire_tuple[0])
+            wire = wire.labels[0]
 
-        return self.wire_tuple.index(wire)
+        try:
+            return self.labels.index(wire)
+        except ValueError:
+            raise WireError("Wire with label {} not found in {}.".format(wire, self))
 
     def indices(self, wires):
         """
@@ -156,13 +171,50 @@ class Wires(Sequence):
         [2, 0]
 
         Args:
-            wires (Wires or Iterable[Any]): Iterable containing the wires whose indices are to be found
+            wires (Iterable[Number, str], Number, str, Wires): Wire(s) whose indices are to be found
 
         Returns:
             List: index list
         """
+        if not isinstance(wires, Iterable):
+            return [self.index(wires)]
 
         return [self.index(w) for w in wires]
+
+    def map(self, wire_map):
+        """Returns a new Wires object with different labels, using the rule defined in mapping.
+
+        Example:
+
+        >>> wires = Wires(['a', 'b', 'c'])
+        >>> wire_map = {'a': 4, 'b':2, 'c': 3}
+        >>> wires.map(wire_map)
+        <Wires = [4, 2, 3]>
+
+        Args:
+            wire_map (dict): Dictionary containing all wire labels used in this object as keys, and unique
+                             new labels as their values
+        """
+        # Make sure wire_map has `Wires` keys and values so that the `in` operator always works
+        wire_map = {Wires(k): Wires(v) for k, v in wire_map.items()}
+
+        for w in self:
+            if w not in wire_map:
+                raise WireError(
+                    "No mapping for wire label {} specified in wire map {}.".format(w, wire_map)
+                )
+
+        new_wires = [wire_map[w] for w in self]
+
+        try:
+            new_wires = Wires(new_wires)
+        except WireError:
+            raise WireError(
+                "Failed to implement wire map {}. Make sure that the new labels are unique and "
+                "valid wire labels.".format(w, wire_map)
+            )
+
+        return new_wires
 
     def subset(self, indices, periodic_boundary=False):
         """
@@ -174,15 +226,22 @@ class Wires(Sequence):
         >>> wires = Wires([4, 0, 1, 5, 6])
         >>> wires.subset([2, 3, 0])
         <Wires = [1, 5, 4]>
-
         >>> wires.subset(1)
         <Wires = [0]>
 
+        If ``periodic_boundary`` is True, the modulo of the number of wires of an index is used instead of an index,
+        so that  ``wires.subset(i) == wires.subset(i % n_wires)`` where ``n_wires`` is the number of wires of this
+        object.
+
+        For example:
+
+        >>> wires = Wires([4, 0, 1, 5, 6])
+        >>> wires.subset([5, 1, 7], periodic_boundary=True)
+        <Wires = [4, 0, 1]>
+
         Args:
             indices (List[int] or int): indices or index of the wires we want to select
-            periodic_boundary (bool): Whether the modulo of the number of wires of an index is used instead of an index.
-                Implements periodic boundary conditions in the indexing,
-                so that for example ``wires.subset(len(wires)) == wires.subset(0)``.
+            periodic_boundary (bool): controls periodic boundary conditions in the indexing
 
         Returns:
             Wires: subset of wires
@@ -193,15 +252,15 @@ class Wires(Sequence):
 
         if periodic_boundary:
             # replace indices by their modulo
-            indices = [i % len(self.wire_tuple) for i in indices]
+            indices = [i % len(self.labels) for i in indices]
 
         for i in indices:
-            if i > len(self.wire_tuple):
+            if i > len(self.labels):
                 raise WireError(
-                    "Cannot subset wire at index {} from {} wires.".format(i, len(self.wire_tuple))
+                    "Cannot subset wire at index {} from {} wires.".format(i, len(self.labels))
                 )
 
-        subset = [self.wire_tuple[i] for i in indices]
+        subset = [self.labels[i] for i in indices]
         return Wires(subset)
 
     def select_random(self, n_samples, seed=None):
@@ -216,16 +275,16 @@ class Wires(Sequence):
             Wires: random subset of wires
         """
 
-        if n_samples > len(self.wire_tuple):
+        if n_samples > len(self.labels):
             raise WireError(
-                "Cannot sample {} wires from {} wires.".format(n_samples, len(self.wire_tuple))
+                "Cannot sample {} wires from {} wires.".format(n_samples, len(self.labels))
             )
 
         if seed is not None:
             np.random.seed(seed)
 
-        indices = np.random.choice(len(self.wire_tuple), size=n_samples, replace=False)
-        subset = [self.wire_tuple[i] for i in indices]
+        indices = np.random.choice(len(self.labels), size=n_samples, replace=False)
+        subset = [self.labels[i] for i in indices]
         return Wires(subset)
 
     @staticmethod
@@ -267,7 +326,7 @@ class Wires(Sequence):
         return Wires(shared)
 
     @staticmethod
-    def all_wires(list_of_wires):
+    def all_wires(list_of_wires, sort=False):
         """Return the wires that appear in any of the Wires objects in the list.
 
         This is similar to a set combine method, but keeps the order of wires as they appear in the list.
@@ -283,6 +342,8 @@ class Wires(Sequence):
 
         Args:
             list_of_wires (List[Wires]): List of Wires objects
+            sort (bool): Toggle for sorting the combined wire labels. The sorting is based on
+                value if all keys are int, else labels' str representations are used.
 
         Returns:
             Wires: combined wires
@@ -295,7 +356,13 @@ class Wires(Sequence):
                     "Expected a Wires object; got {} of type {}".format(wires, type(wires))
                 )
 
-            combined.extend(wire for wire in wires.wire_tuple if wire not in combined)
+            combined.extend(wire for wire in wires.labels if wire not in combined)
+
+        if sort:
+            if all([isinstance(w, int) for w in combined]):
+                combined = sorted(combined)
+            else:
+                combined = sorted(combined, key=str)
 
         return Wires(combined)
 
@@ -309,7 +376,7 @@ class Wires(Sequence):
         >>> wires2 = Wires([0, 2, 3])
         >>> wires3 = Wires([5, 3])
         >>> Wires.unique_wires([wires1, wires2, wires3])
-        <Wires = [4, 2, 5]>
+        <Wires = [4, 1, 2, 5]>
 
         Args:
             list_of_wires (List[Wires]): list of Wires objects
