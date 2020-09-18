@@ -316,10 +316,9 @@ class DefaultTensor(Device):
 
     def _apply(self, operation):
 
-        operation = operation.name
         wires = operation.wires
-        par = operation.par
-        if operation in ("QubitStateVector", "BasisState"):
+        par = operation.data
+        if operation.name in ("QubitStateVector", "BasisState"):
             if (
                 wires is not None
                 and wires != Wires([])
@@ -337,9 +336,6 @@ class DefaultTensor(Device):
 
     def apply(self, operations, **kwargs):
         for operation in operations:
-            # number of wires on device
-            wires = operation.wires
-            par = operation.parameters
             self._apply(operation)
 
     def _add_state_prep_nodes(self, operation, par):
@@ -451,10 +447,10 @@ class DefaultTensor(Device):
 
     def var(self, observable):
         wires = observable.wires
-        par = observable.params
+        par = observable.data
 
         if not isinstance(observable, list):
-            observable, wires, par = [observable], [wires], [par]
+            observable, wires = [observable], [wires]
 
         matrices = [o.matrix for o in observable]
 
@@ -472,10 +468,9 @@ class DefaultTensor(Device):
 
     def sample(self, observable):
         wires = observable.wires
-        par = observable.params
 
         if not isinstance(observable, list):
-            observable, wires, par = [observable], [wires], [par]
+            observable, wires = [observable], [wires]
 
         matrices = [o.matrix for o in observable]
 
