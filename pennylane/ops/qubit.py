@@ -22,7 +22,7 @@ import functools
 import numpy as np
 
 from pennylane.templates import template
-from pennylane.operation import AnyWires, Observable, Operation, DiagonalOperation
+from pennylane.operation import AnyWires, Observable, Operation, DiagonalOperation, Tensor
 from pennylane.templates.state_preparations import BasisStatePreparation, MottonenStatePreparation
 from pennylane.utils import pauli_eigs, expand
 from pennylane._queuing import OperationRecorder
@@ -764,6 +764,10 @@ class MultiRZ(DiagonalOperation):
     num_wires = AnyWires
     par_domain = "R"
     grad_method = "A"
+
+    @property
+    def generator(self):
+        return [Tensor(*[PauliZ(wire) for wire in self.wires]), -1 / 2]
 
     @classmethod
     def _matrix(cls, theta, n):
