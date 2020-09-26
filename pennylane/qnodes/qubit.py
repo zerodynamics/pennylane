@@ -27,7 +27,7 @@ import pennylane as qml
 from pennylane.measure import var
 from pennylane.utils import expand
 
-from pennylane.operation import Observable, ObservableReturnTypes
+from pennylane.operation import Observable, ObservableReturnTypes, Tensor
 
 from .base import QuantumFunctionError
 from .jacobian import JacobianQNode
@@ -260,6 +260,17 @@ class QubitQNode(JacobianQNode):
 
                     if not diag_approx:
                         Ki_matrices.append((n, expand(gen, wire_indices, self.num_wires)))
+
+                elif isinstance(gen, Tensor):
+                    # generator is a tensor product of PennyLane observables
+                    variance = var(gen)
+
+                    if not diag_approx:
+                        # TODO: the matrix for a Tensor with unordered wires
+                        # can give incorrect results
+                        mat = gen.matrix
+
+                        Ki_matrices.append((n, expand(mat, wire_indices, self.num_wires)))
 
                 elif issubclass(gen, Observable):
                     # generator is an existing PennyLane operation
