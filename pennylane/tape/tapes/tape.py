@@ -1173,14 +1173,19 @@ class QuantumTape(AnnotatedQueue):
                 the current tape parameter values are used (via :meth:`~.get_parameters`).
 
         Keyword Args:
-            h=1e-7 (float): spsa method step size
+            shift (float): spsa method step size
         """
         if params is None:
             params = np.array(self.get_parameters())
 
         # TODO: Generate the default step size using Bernoulli
         # delta is a vector
-        shift = options.get("h", 1e-7)
+
+        def default_delta(prob, p):
+            delta = 2*np.random.binomial(1, prob, p)-1
+            return delta
+
+        shift = options.get("shift", default_delta(0.5, len(params)))
 
         theta_plus = params + shift
         theta_minus = params - shift
