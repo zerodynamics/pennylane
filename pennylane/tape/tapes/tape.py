@@ -1178,6 +1178,18 @@ class QuantumTape(AnnotatedQueue):
         """
         raise NotImplementedError
 
+    def spsa_pd(self, device, params=None, **options):
+        # TODO
+        """Evaluate the gradient of the tape with respect to
+        all trainable tape parameters using SPSA.
+
+        Args:
+            device (.Device, .QubitDevice): a PennyLane device
+                that can execute quantum operations and return measurement statistics
+            params (list[Any]): The quantum tape operation parameters. If not provided,
+                the current tape parameter values are used (via :meth:`~.get_parameters`).
+        """
+
     def jacobian(self, device, params=None, **options):
         r"""Compute the Jacobian of the parametrized quantum circuit recorded by the quantum tape.
 
@@ -1295,6 +1307,9 @@ class QuantumTape(AnnotatedQueue):
 
         if method == "device":
             # Using device mode; simply query the device for the Jacobian
+            return self.device_pd(device, params=params, **options)
+
+        elif method == "spsa":
             return self.device_pd(device, params=params, **options)
 
         # perform gradient method validation
