@@ -1171,16 +1171,24 @@ class QuantumTape(AnnotatedQueue):
                 that can execute quantum operations and return measurement statistics
             params (list[Any]): The quantum tape operation parameters. If not provided,
                 the current tape parameter values are used (via :meth:`~.get_parameters`).
+
+        Keyword Args:
+            h=1e-7 (float): spsa method step size
         """
-        shift = np.zeros_like(params, dtype=np.float64)
+        if params is None:
+            params = np.array(self.get_parameters())
 
-        theta_plus = theta + shift
-        theta_minus = theta - shift
+        # TODO: Generate the default step size using Bernoulli
+        # delta is a vector
+        shift = options.get("h", 1e-7)
 
-        yplus = np.array(self.execute_device(params + shift, device))
-        yminus = np.array(self.execute_device(params - shift, device))
+        theta_plus = params + shift
+        theta_minus = params - shift
 
-        ghat = (shift_forward - shift_backward) / (2*shift)
+        yplus = np.array(self.execute_device(theta_plus, device))
+        yminus = np.array(self.execute_device(theta_minus, device))
+
+        ghat = (yplus - yminus) / (2*shift)
         return ghat
 
     def analytic_pd(self, idx, device, params=None, **options):
@@ -1244,7 +1252,7 @@ class QuantumTape(AnnotatedQueue):
         Keyword Args:
             method="best" (str): The differentiation method. Must be one of ``"numeric"``,
                 ``"analytic"``, ``"best"``, or ``"device"``.
-            h=1e-7 (float): finite difference method step size
+            h=1e-7 (float): finite difference or spsa method step size
             order=1 (int): The order of the finite difference method to use. ``1`` corresponds
                 to forward finite differences, ``2`` to centered finite differences.
 
