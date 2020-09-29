@@ -1310,7 +1310,7 @@ class QuantumTape(AnnotatedQueue):
             return self.device_pd(device, params=params, **options)
 
         elif method == "spsa":
-            return self.device_pd(device, params=params, **options)
+            return self.spsa_pd(device, params=params, **options)
 
         # perform gradient method validation
         allowed_param_methods = self._grad_method_validation(method)
