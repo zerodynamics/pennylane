@@ -1161,6 +1161,28 @@ class QuantumTape(AnnotatedQueue):
         self.set_parameters(saved_parameters)
         return jac
 
+    def spsa_pd(self, device, params=None, **options):
+        # TODO: docstring
+        """Evaluate the gradient of the tape with respect to
+        all trainable tape parameters using SPSA.
+
+        Args:
+            device (.Device, .QubitDevice): a PennyLane device
+                that can execute quantum operations and return measurement statistics
+            params (list[Any]): The quantum tape operation parameters. If not provided,
+                the current tape parameter values are used (via :meth:`~.get_parameters`).
+        """
+        shift = np.zeros_like(params, dtype=np.float64)
+
+        theta_plus = theta + shift
+        theta_minus = theta - shift
+
+        yplus = np.array(self.execute_device(params + shift, device))
+        yminus = np.array(self.execute_device(params - shift, device))
+
+        ghat = (shift_forward - shift_backward) / (2*shift)
+        return ghat
+
     def analytic_pd(self, idx, device, params=None, **options):
         """Evaluate the gradient of the tape with respect to
         a single trainable tape parameter using an analytic method.
@@ -1177,18 +1199,6 @@ class QuantumTape(AnnotatedQueue):
                 measurement statistics
         """
         raise NotImplementedError
-
-    def spsa_pd(self, device, params=None, **options):
-        # TODO
-        """Evaluate the gradient of the tape with respect to
-        all trainable tape parameters using SPSA.
-
-        Args:
-            device (.Device, .QubitDevice): a PennyLane device
-                that can execute quantum operations and return measurement statistics
-            params (list[Any]): The quantum tape operation parameters. If not provided,
-                the current tape parameter values are used (via :meth:`~.get_parameters`).
-        """
 
     def jacobian(self, device, params=None, **options):
         r"""Compute the Jacobian of the parametrized quantum circuit recorded by the quantum tape.
@@ -1297,7 +1307,7 @@ class QuantumTape(AnnotatedQueue):
 
         method = options.get("method", "best")
 
-        if method not in ("best", "numeric", "analytic", "device"):
+        if method not in ("best", "numeric", "analytic", "device", "spsa"):
             raise ValueError(f"Unknown gradient method '{method}'")
 
         if params is None:
