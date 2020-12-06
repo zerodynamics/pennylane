@@ -21,21 +21,27 @@ from pennylane.utils import pauli_eigs
 C_DTYPE = tf.complex128
 R_DTYPE = tf.float64
 
+import numpy as np
+Znp = np.array([[1, 0], [0, -1]], dtype=np.complex128)
+Inp = np.array([[1, 0], [0, 1]], dtype=np.complex128)
+Xnp = np.array([[0, 1], [1, 0]], dtype=np.complex128)
+Ynp = np.array([[0j, -1j], [1j, 0j]], dtype=np.complex128)
+
 I = tf.constant([[1, 0], [0, 1]], dtype=C_DTYPE)
 X = tf.constant([[0, 1], [1, 0]], dtype=C_DTYPE)
 Y = tf.constant([[0j, -1j], [1j, 0j]], dtype=C_DTYPE)
-Z = tf.constant([[1, 0], [0, -1]], dtype=C_DTYPE)
+Z = tf.constant(Znp, dtype=C_DTYPE)
 
 II = tf.eye(4, dtype=C_DTYPE)
-ZZ = tf.constant(kron(Z, Z), dtype=C_DTYPE)
+ZZ = tf.constant(kron(Znp, Znp), dtype=C_DTYPE)
 
-IX = tf.constant(kron(I, X), dtype=C_DTYPE)
-IY = tf.constant(kron(I, Y), dtype=C_DTYPE)
-IZ = tf.constant(kron(I, Z), dtype=C_DTYPE)
+IX = tf.constant(kron(Inp, Xnp), dtype=C_DTYPE)
+IY = tf.constant(kron(Inp, Ynp), dtype=C_DTYPE)
+IZ = tf.constant(kron(Inp, Znp), dtype=C_DTYPE)
 
-ZI = tf.constant(kron(Z, I), dtype=C_DTYPE)
-ZX = tf.constant(kron(Z, X), dtype=C_DTYPE)
-ZY = tf.constant(kron(Z, Y), dtype=C_DTYPE)
+ZI = tf.constant(kron(Znp, Inp), dtype=C_DTYPE)
+ZX = tf.constant(kron(Znp, Xnp), dtype=C_DTYPE)
+ZY = tf.constant(kron(Znp, Ynp), dtype=C_DTYPE)
 
 
 def PhaseShift(phi):
