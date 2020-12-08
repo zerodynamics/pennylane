@@ -14,9 +14,12 @@
 """
 This module contains the autograd wrappers :class:`grad` and :func:`jacobian`
 """
+from collections.abc import Iterable
+
 import numpy as _np
 
 from autograd.core import make_vjp as _make_vjp
+from autograd.differential_operators import make_jvp_reversemode
 from autograd.wrap_util import unary_to_nary
 from autograd.extend import vspace
 from autograd import jacobian as _jacobian
@@ -122,7 +125,7 @@ class grad:
         return grad_value, ans
 
 
-def jacobian(func, argnum=None):
+class jacobian:
     """Returns the Jacobian as a callable function of vector-valued
     (functions of) QNodes.
 
@@ -141,40 +144,68 @@ def jacobian(func, argnum=None):
         function: the function that returns the Jacobian of the input
         function with respect to the arguments in argnum
     """
-    # pylint: disable=no-value-for-parameter
 
-    if argnum is not None:
-        # for backwards compatibility with existing code
-        # that manually specifies argnum
-        if isinstance(argnum, int):
-            return _jacobian(func, argnum)
+    def __init__(self, fun, argnum=None):
+        self._jac_fn = None
+        self._fun = fun
+        self._argnum = argnum
 
-        return lambda *args, **kwargs: _np.stack(
-            [_jacobian(func, arg)(*args, **kwargs) for arg in argnum]
-        ).T
+        if self._argnum is not None:
+            # If the differentiable argnum is provided, we can construct
+            # the gradient function at once during initialization
+            self._jac_fn = self._jac(fun, argnum=argnum)
 
-    def _jacobian_function(*args, **kwargs):
-        """Inspect the arguments for differentiability, and
-        compute the autograd gradient function with required argnums
-        dynamically.
+    def __call__(self, *args, **kwargs):
+        """Evaluates the gradient function, and saves the function value
+        calculated during the forward pass in :attr:`.forward`."""
+        grad_value = self._get_jac_fn(args)(*args, **kwargs)
+        return grad_value
 
-        This wrapper function is returned to the user instead of autograd.jacobian,
-        so that we can take into account cases where the user computes the
-        jacobian function once, but then calls it with arguments that change
-        in differentiability.
+    def _get_jac_fn(self, args):
+        """Get the required jacoian function.
+
+        * If the differentiable argnum was provided on initialization,
+          this has been pre-computed and is available via self._jac_fn
+
+        * Otherwise, we must dynamically construct the gradient function by
+          inspecting as to which of the parameter arguments are marked
+          as differentiable.
         """
+        if self._jac_fn is not None:
+            return self._jac_fn
+
+        # Inspect the arguments for differentiability, and
+        # compute the autograd gradient function with required argnums
+        # dynamically.
         argnum = []
 
         for idx, arg in enumerate(args):
             if getattr(arg, "requires_grad", True):
                 argnum.append(idx)
 
-        if not argnum:
-            return tuple()
+        return self._jac(self._fun, argnum=argnum)
 
-        if len(argnum) == 1:
-            return _jacobian(func, argnum[0])(*args, **kwargs)
+    @staticmethod
+    @unary_to_nary
+    def _jac(fun, x):
+        from pennylane import numpy as np
 
-        return _np.stack([_jacobian(func, arg)(*args, **kwargs) for arg in argnum]).T
+        vjp, y = _make_vjp(fun, x)
+        jvp, _ = _make_vjp(vjp, np.array(vspace(y).zeros(), requires_grad=True))
 
-    return _jacobian_function
+        jac = []
+
+        if not isinstance(x, Iterable) or not getattr(x, "ndim", 1):
+            num_vectors = 1
+        else:
+            num_vectors = len(x)
+
+        # loop through each basis
+        for basis_idx in range(num_vectors):
+            basis_vector = _np.eye(1, num_vectors, basis_idx, dtype=_np.int)[0]
+            jac.append(jvp(basis_vector))
+
+        if num_vectors == 1:
+            return _np.array(jac).T.flatten()
+
+        return _np.array(jac).T
