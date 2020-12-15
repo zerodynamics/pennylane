@@ -37,18 +37,18 @@ def u2_ex_gate(phi, wires=None):
 
         U_{2, \mathrm{ex}}(\phi) = \left(\begin{array}{cccc}
         1 & 0 & 0 & 0 \\
-        0 & \mathrm{cos}(\phi) & -i\;\mathrm{sin}(\phi) & 0 \\
-        0 & -i\;\mathrm{sin}(\phi) & \mathrm{cos}(\phi) & 0 \\
+        0 & \mathrm{cos}(4\phi) & -i\;\mathrm{sin}(4\phi) & 0 \\
+        0 & -i\;\mathrm{sin}(4\phi) & \mathrm{cos}(4\phi) & 0 \\
         0 & 0 & 0 & 1 \\
         \end{array}\right).
 
     Args:
-        phi (float): angle entering the controlled-RX operator :math:`CRX(2\phi)`
+        phi (float): angle entering the controlled-RX operator :math:`CRX(4\phi)`
         wires (list[Wires]): the two wires ``n`` and ``m`` the circuit acts on
     """
 
     CNOT(wires=wires)
-    CRX(2 * phi, wires=wires[::-1])
+    CRX(4 * phi, wires=wires[::-1])
     CNOT(wires=wires)
 
 
@@ -176,4 +176,5 @@ def ParticleConservingU2(weights, wires, init_state=None):
             RZ(weights[l, j], wires=wires[j])
 
         for i, wires_ in enumerate(nm_wires):
-            u2_ex_gate(weights[l, len(wires) + i], wires=wires_)
+            # u2_ex_gate(weights[l, len(wires) + i], wires=wires_)
+            u2_ex_gate(weights[l, len(wires) + i], wires=wires_[::-1])
