@@ -37,8 +37,8 @@ def u2_ex_gate(phi, wires=None):
 
         U_{2, \mathrm{ex}}(\phi) = \left(\begin{array}{cccc}
         1 & 0 & 0 & 0 \\
-        0 & \mathrm{cos}(4\phi) & -i\;\mathrm{sin}(4\phi) & 0 \\
-        0 & -i\;\mathrm{sin}(4\phi) & \mathrm{cos}(4\phi) & 0 \\
+        0 & \mathrm{cos}(2\phi) & -i\;\mathrm{sin}(2\phi) & 0 \\
+        0 & -i\;\mathrm{sin}(2\phi) & \mathrm{cos}(2\phi) & 0 \\
         0 & 0 & 0 & 1 \\
         \end{array}\right).
 
