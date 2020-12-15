@@ -176,5 +176,5 @@ def ParticleConservingU2(weights, wires, init_state=None):
             RZ(weights[l, j], wires=wires[j])
 
         for i, wires_ in enumerate(nm_wires):
-            # u2_ex_gate(weights[l, len(wires) + i], wires=wires_)
-            u2_ex_gate(weights[l, len(wires) + i], wires=wires_[::-1])
+            u2_ex_gate(weights[l, len(wires) + i], wires=wires_)
+            # u2_ex_gate(weights[l, len(wires) + i], wires=wires_[::-1])
