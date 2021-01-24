@@ -582,11 +582,12 @@ class DefaultQubit(QubitDevice):
 
         # The new indices of the state are given by the old ones with the affected indices
         # replaced by the new_indices
-        new_state_indices = functools.reduce(
-            lambda old_string, idx_pair: old_string.replace(idx_pair[0], idx_pair[1]),
-            zip(affected_indices, new_indices),
+        indices_map = {c:c for c in state_indices}
+        indices_map.update({a:b for a, b in zip(affected_indices, new_indices)})
+        new_state_indices = "".join(map(
+            lambda c: indices_map[c],
             state_indices,
-        )
+        ))
 
         # We now put together the indices in the notation numpy's einsum requires
         einsum_indices = (
