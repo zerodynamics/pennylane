@@ -2,6 +2,34 @@
 
 <h3>New features since last release</h3>
 
+* A new differentiation method has been added for use with simulators in tape mode. The `"adjoint"`
+  method operates after a forward pass by iteratively applying inverse gates to scan backwards
+  through the circuit. This method is similar to the reversible method, but has a lower time
+  overhead and a similar memory overhead. It follows the approach provided by
+  [Jones and Gacon](https://arxiv.org/abs/2009.02823). This method is only compatible with certain
+  statevector-based devices such as `default.qubit`.
+  
+  Example use:
+  
+  ```python
+  import pennylane as qml
+
+  qml.enable_tape()
+
+  wires = 1
+  device = qml.device("default.qubit", wires=wires)
+
+  @qml.qnode(device, diff_method="adjoint")
+  def f(params):
+      qml.RX(0.1, wires=0)
+      qml.Rot(*params, wires=0)
+      qml.RX(-0.3, wires=0)
+      return qml.expval(qml.PauliZ(0))
+
+  params = [0.1, 0.2, 0.3]
+  qml.grad(f)(params)
+  ```
+
 * Added `qml.math.squeeze`.
   [(#1011)](https://github.com/PennyLaneAI/pennylane/pull/1011)
 
@@ -302,6 +330,30 @@
 
 <h3>Improvements</h3>
 
+* The circuit drawer has been updated to support the inclusion of unused or inactive
+  wires, by passing the `show_all_wires` argument.
+  [(#1033)](https://github.com/PennyLaneAI/pennylane/pull/1033)
+
+  ```python
+  dev = qml.device('default.qubit', wires=[-1, "a", "q2", 0])
+
+  @qml.qnode(dev)
+  def circuit():
+      qml.Hadamard(wires=-1)
+      qml.CNOT(wires=[-1, "q2"])
+      return qml.expval(qml.PauliX(wires="q2"))
+  ```
+
+  ```pycon
+  >>> print(qml.draw(circuit, show_all_wires=True)())
+  >>>
+   -1: ──H──╭C──┤
+    a: ─────│───┤
+   q2: ─────╰X──┤ ⟨X⟩
+    0: ─────────┤
+  ```
+
+
 * The `default.qubit` device has been updated so that internally it applies operations in a more
   functional style, i.e., by accepting an input state and returning an evolved state.
   [(#1025)](https://github.com/PennyLaneAI/pennylane/pull/1025)  
@@ -371,6 +423,10 @@
 
 <h3>Bug fixes</h3>
 
+* Fixes an issue with tape expansions where information about sampling
+  (specifically the `is_sampled` tape attribute) was not preserved.
+  [(#1027)](https://github.com/PennyLaneAI/pennylane/pull/1027)
+
 * In tape mode, tape expansion was not properly taking into devices that supported inverse operations,
   causing inverse operations to be unnecessarily decomposed. The QNode tape expansion logic, as well
   as the `Operation.expand()` method, has been modified to fix this.
@@ -391,7 +447,8 @@
 
 This release contains contributions from (in alphabetical order):
 
-Thomas Bromley, Olivia Di Matteo, Josh Izaac, Christina Lee, Alejandro Montanez, Steven Oud, Chase Roberts, Maria Schuld, David Wierichs, Jiahao Yao.
+Thomas Bromley, Olivia Di Matteo, Josh Izaac, Christina Lee, Alejandro Montanez, Steven Oud, Chase
+Roberts, Maria Schuld, Antal Száva, David Wierichs, Jiahao Yao.
 
 # Release 0.13.0 (current release)
 
