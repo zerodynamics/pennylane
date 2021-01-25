@@ -66,13 +66,19 @@ class Device(abc.ABC):
 
         self.shots = shots
 
-        if not isinstance(wires, Iterable):
+        if isinstance(wires, Iterable):
+            # interpret wires as iterable of labels
+            self._wires = Wires(wires)
+            self.num_wires = len(wires)
+            # define wire map
+            self._wire_map = self.define_wire_map(self._wires)
+        else:
             # interpret wires as the number of consecutive wires
-            wires = range(wires)
+            self._wires = Wires(range(wires))
+            self.num_wires = 1
+            # switch wire translation off
+            self._wire_map = None
 
-        self._wires = Wires(wires)
-        self.num_wires = len(self._wires)
-        self._wire_map = self.define_wire_map(self._wires)
         self._num_executions = 0
         self._op_queue = None
         self._obs_queue = None

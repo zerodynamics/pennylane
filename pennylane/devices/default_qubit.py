@@ -150,6 +150,7 @@ class DefaultQubit(QubitDevice):
         # temporarily overwrite this method to bypass
         # wire map that produces Wires objects
         mapped_wires = [self.wire_map[w] for w in wires]
+        print(wires)
         return mapped_wires
 
     def define_wire_map(self, wires):
@@ -469,7 +470,10 @@ class DefaultQubit(QubitDevice):
         """
 
         # translate to wire labels used by device
-        device_wires = self.map_wires(device_wires)
+        if self.wire_map is None:
+            device_wires = device_wires.labels
+        else:
+            device_wires = self.map_wires(device_wires)
 
         state = self._asarray(state, dtype=self.C_DTYPE)
         n_state_vector = state.shape[0]
@@ -508,7 +512,10 @@ class DefaultQubit(QubitDevice):
             wires (Wires): wires that the provided computational state should be initialized on
         """
         # translate to wire labels used by device
-        device_wires = self.map_wires(wires)
+        if self.wire_map is None:
+            device_wires = wires.labels
+        else:
+            device_wires = self.map_wires(wires)
 
         # length of basis state parameter
         n_basis_state = len(state)
@@ -537,7 +544,10 @@ class DefaultQubit(QubitDevice):
             array[complex]: output state
         """
         # translate to wire labels used by device
-        device_wires = self.map_wires(wires)
+        if self.wire_map is None:
+            device_wires = wires.labels
+        else:
+            device_wires = self.map_wires(wires)
 
         mat = self._cast(self._reshape(mat, [2] * len(device_wires) * 2), dtype=self.C_DTYPE)
         axes = (np.arange(len(device_wires), 2 * len(device_wires)), device_wires)
@@ -567,7 +577,10 @@ class DefaultQubit(QubitDevice):
             array[complex]: output state
         """
         # translate to wire labels used by device
-        device_wires = self.map_wires(wires)
+        if self.wire_map is None:
+            device_wires = wires.labels
+        else:
+            device_wires = self.map_wires(wires)
 
         mat = self._cast(self._reshape(mat, [2] * len(device_wires) * 2), dtype=self.C_DTYPE)
 
@@ -614,7 +627,10 @@ class DefaultQubit(QubitDevice):
             array[complex]: output state
         """
         # translate to wire labels used by device
-        device_wires = self.map_wires(wires)
+        if self.wire_map is None:
+            device_wires = wires.labels
+        else:
+            device_wires = self.map_wires(wires)
 
         # reshape vectors
         phases = self._cast(self._reshape(phases, [2] * len(device_wires)), dtype=self.C_DTYPE)
