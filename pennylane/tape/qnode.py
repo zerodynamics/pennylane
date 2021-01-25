@@ -284,12 +284,7 @@ class QNode:
             if interface in backprop_devices:
                 # TODO: need a better way of passing existing device init options
                 # to a new device?
-                device = qml.device(
-                    backprop_devices[interface],
-                    wires=device.wires,
-                    analytic=True,
-                    translate_wires=device.translate_wires
-                    )
+                device = qml.device(backprop_devices[interface], wires=device.wires, analytic=True)
                 return JacobianTape, interface, "backprop", device
 
             raise qml.QuantumFunctionError(

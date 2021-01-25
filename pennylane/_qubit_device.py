@@ -626,8 +626,16 @@ class QubitDevice(Device):
         inactive_wires = Wires.unique_wires([self.wires, wires])
 
         # translate to wire labels used by device
-        device_wires = self.map_wires(wires)
-        inactive_device_wires = self.map_wires(inactive_wires)
+        if hasattr(self, "translate_wires"):
+            if self.translate_wires:
+                device_wires = self.map_wires(wires)
+                inactive_device_wires = self.map_wires(inactive_wires)
+            else:
+                device_wires = wires
+                inactive_device_wires = inactive_wires
+        else:
+            device_wires = wires.labels
+            inactive_device_wires = inactive_wires
 
         # reshape the probability so that each axis corresponds to a wire
         prob = self._reshape(prob, [2] * self.num_wires)
