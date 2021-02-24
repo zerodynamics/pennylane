@@ -16,6 +16,7 @@ Layers are trainable templates that are typically repeated, using different adju
 They implement a transformation from a quantum state to another quantum state.
 """
 
+from .strongly_entangling_rotxy import StronglyEntanglingLayersRotXY
 from .strongly_entangling import StronglyEntanglingLayers
 from .random import RandomLayers
 from .cv_neural_net import CVNeuralNetLayers
