@@ -124,6 +124,7 @@ class DefaultQubit(QubitDevice):
         "CRZ",
         "CRot",
         "QFT",
+        "RotXY",
     }
 
     observables = {"PauliX", "PauliY", "PauliZ", "Hadamard", "Hermitian", "Identity"}
