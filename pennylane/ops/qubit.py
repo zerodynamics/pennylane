@@ -24,6 +24,9 @@ import math
 import numpy as np
 from scipy.linalg import block_diag
 
+# used in RotXY
+import pennylane.numpy as pnp
+
 import pennylane as qml
 from pennylane.operation import AnyWires, DiagonalOperation, Observable, Operation
 from pennylane.templates import template
@@ -777,6 +780,63 @@ class ControlledPhaseShift(DiagonalOperation):
         ]
         return decomp_ops
 
+#zer0dynamics
+class RotXY(Operation):
+    r"""RotXY(theta_x, theta_y, wires)
+    Arbitrary single qubit rotation
+
+    .. math::
+        TODO:
+
+    **Details:**
+
+    * Number of wires: 1
+    * Number of parameters: 2
+    * Gradient recipe: :math:`\frac{d}{d\phi}f(R(\phi, \theta, \omega)) = \frac{1}{2}\left[f(R(\phi+\pi/2, \theta, \omega)) - f(R(\phi-\pi/2, \theta, \omega))\right]`
+      where :math:`f` is an expectation value depending on :math:`R(\phi, \theta, \omega)`.
+      This gradient recipe applies for each angle argument :math:`\{\phi, \theta, \omega\}`.
+
+    .. note::
+
+        If the ``RotXY`` gate is not supported on the targeted device, PennyLane
+        will attempt to decompose the gate into :class:`~.RZ` and :class:`~.RY` gates.
+
+    Args:
+        theta_x (float): rotation angle :math:`\theta`
+        theta_y (float): rotation angle :math:`\theta`
+        wires (Sequence[int] or int): the wire the operation acts on
+    """
+
+    num_params = 2
+    num_wires = 1
+    par_domain = "R"
+    grad_method = "A"
+
+    @classmethod
+    def _matrix(cls, *params):
+        theta_x, theta_y = params
+
+        norm_theta = pnp.sqrt(pnp.power(theta_x,2) + pnp.power(theta_y,2))
+        theta_x_n  = pnp.divide(theta_x, norm_theta)
+        theta_y_n  = pnp.divide(theta_y, norm_theta)
+
+        c = pnp.cos(norm_theta / 2)
+        s = pnp.sin(norm_theta / 2)
+
+        # from Mike&Ike w/theta_z=0
+        return pnp.array(
+            [
+                [c,                             -theta_y_n*s - 1j*theta_x_n*s],
+                [theta_y_n*s - 1j*theta_x_n*s,   c],
+            ]
+        )
+
+    @staticmethod
+    def decomposition(theta_x, theta_y, wires):
+        #if RotXY isn't supported on hardware then pennlyane uses the decomposition
+        #TODO: fix this
+        decomp_ops = [RZ(theta_x, wires=wires), RY(theta_y, wires=wires)]
+        return decomp_ops
 
 class Rot(Operation):
     r"""Rot(phi, theta, omega, wires)
@@ -1977,6 +2037,7 @@ ops = {
     "ControlledQubitUnitary",
     "DiagonalQubitUnitary",
     "QFT",
+    "RotXY"
 }
 
 
